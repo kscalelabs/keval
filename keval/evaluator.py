@@ -1,4 +1,4 @@
-"""Defines the evaluator."""
+"""Global evaluator."""
 
 import logging
 from enum import Enum
@@ -58,25 +58,3 @@ class Evaluator:
             pass
 
         self.logger.info("Evaluation complete")
-
-    def adapt_model(self) -> None:
-        """Adapt the schema of the model to the laste version of:"""
-        self.logger.warning(
-            """Adapt the schema of the model to the laste version of:
-            https://github.com/kscalelabs/kinfer/blob/master/kinfer/protos/kinfer.proto
-            """
-        )
-
-        # TODO: Implement the model adaptation
-        pass
-
-    def valid_locomotion(self: dict) -> None:
-        """Validates the model metadata for locomotion."""
-        assert hasattr(self.model_metadata, "num_actions")
-        assert hasattr(self.model_metadata, "num_observations")
-        assert hasattr(self.model_metadata, "robot_effort")
-        assert hasattr(self.model_metadata, "robot_stiffness")
-        assert hasattr(self.model_metadata, "robot_damping")
-        assert hasattr(self.model_metadata, "sim_dt")
-        assert hasattr(self.model_metadata, "sim_decimation")
-        assert hasattr(self.model_metadata, "tau_factor")

@@ -2,10 +2,6 @@
 
 Run:
     python keval/run_eval.py --config_path configs/locomotion.yaml \
-        --model_path examples/gpr_walking.kinfer \
-        --device cpu
-
-    python keval/run_eval.py --config_path configs/locomotion.yaml \
         --model_path test_model.onnx \
         --device cpu
 """

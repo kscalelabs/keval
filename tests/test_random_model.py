@@ -37,7 +37,6 @@ class SimpleModel(torch.nn.Module):
         super().__init__()
         layers = []
 
-        # Double the input features to accommodate both positions and velocities
         total_input_features = config.in_features * 2
         in_features = total_input_features
 
