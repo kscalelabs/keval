@@ -1,4 +1,4 @@
-model_path: "gpr_walking.onnx"
+model_path: "model.onnx"
 embodiment: "gpr"
 resources_dir: "keval/resources"
 
