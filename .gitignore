@@ -19,3 +19,7 @@ build/
 dist/
 *.so
 out*/
+
+# KEval artifacts
+logs/
+test_model.onnx

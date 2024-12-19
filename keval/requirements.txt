@@ -1,2 +1,12 @@
 # requirements.txt
 
+krec
+kinfer
+mujoco
+omegaconf
+onnxruntime
+torch
+mujoco-python-viewer
+scipy
+mediapy
+colorlogging
