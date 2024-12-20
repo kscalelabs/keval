@@ -1,8 +1,5 @@
 """Mujoco runner"""
 
-import math
-import os
-from copy import deepcopy
 from pathlib import Path
 
 import mediapy as media
@@ -12,10 +9,9 @@ import numpy as np
 import torch
 from kinfer import proto as P
 from omegaconf import OmegaConf
-from scipy.spatial.transform import Rotation as R
 
 from keval import metrics
-from keval.observation import ATTACHED_METADATA, JOINT_NAMES, input_schema
+from keval.observation import ATTACHED_METADATA, JOINT_NAMES
 from keval.runners.base_runner import Runner
 
 
@@ -52,7 +48,13 @@ class MujocoRunner(Runner):
         self.mj_data.qvel = np.zeros_like(self.mj_data.qvel)
         self.mj_data.qacc = np.zeros_like(self.mj_data.qacc)
 
-        self.viewer = mujoco_viewer.MujocoViewer(self.mj_model, self.mj_data, "offscreen")
+        self.viewer = mujoco_viewer.MujocoViewer(
+            self.mj_model,
+            self.mj_data,
+            "offscreen",
+            height=480 // 2,
+            width=640 // 2,
+        )
         self.record_video = eval_config.eval_envs.locomotion.record_video
         self.camera_frames = []
 
@@ -107,12 +109,18 @@ class MujocoRunner(Runner):
 
         return local_metrics
 
-    def create_observation(self) -> None:
+    def create_observation(self, simulation_time: float) -> None:
         """Create the observation for the model.
+
+        Args:
+            simulation_time: The simulation time.
 
         Returns:
             The observation for the model.
         """
+        seconds = int(simulation_time)
+        nanos = int((simulation_time - seconds) * 1e9)
+
         inputs = P.IO(
             values=[
                 P.Value(
@@ -130,8 +138,58 @@ class MujocoRunner(Runner):
                 ),
                 P.Value(
                     value_name="joint_velocities",
-                    state_tensor=P.StateTensorValue(
-                        data=self.mj_data.qvel[-len(JOINT_NAMES) :].astype(np.float32).tobytes()
+                    joint_velocities=P.JointVelocitiesValue(
+                        values=[
+                            P.JointVelocityValue(
+                                joint_name=name,
+                                value=self.mj_data.qvel[-len(JOINT_NAMES) + index],
+                                unit=P.JointVelocityUnit.RADIANS_PER_SECOND,
+                            )
+                            for index, name in enumerate(JOINT_NAMES)
+                        ]
+                    ),
+                ),
+                P.Value(
+                    value_name="vector_command",
+                    vector_command=P.VectorCommandValue(values=[self.x_vel_cmd, self.y_vel_cmd, self.yaw_vel_cmd]),
+                ),
+                P.Value(
+                    value_name="imu",
+                    imu=P.ImuValue(
+                        linear_acceleration=P.ImuAccelerometerValue(
+                            x=self.mj_data.sensor("accelerometer").data[0],
+                            y=self.mj_data.sensor("accelerometer").data[1],
+                            z=self.mj_data.sensor("accelerometer").data[2],
+                        ),
+                        angular_velocity=P.ImuGyroscopeValue(
+                            x=self.mj_data.sensor("angular-velocity").data[0],
+                            y=self.mj_data.sensor("angular-velocity").data[1],
+                            z=self.mj_data.sensor("angular-velocity").data[2],
+                        ),
+                        magnetic_field=P.ImuMagnetometerValue(
+                            x=self.mj_data.sensor("magnetometer").data[0],
+                            y=self.mj_data.sensor("magnetometer").data[1],
+                            z=self.mj_data.sensor("magnetometer").data[2],
+                        ),
+                    ),
+                ),
+                P.Value(
+                    value_name="timestamp",
+                    timestamp=P.TimestampValue(
+                        seconds=seconds,
+                        nanos=nanos,
+                    ),
+                ),
+                P.Value(
+                    value_name="camera_frame_left",
+                    camera_frame=P.CameraFrameValue(
+                        data=self.viewer.read_pixels(camid=2).tobytes(),
+                    ),
+                ),
+                P.Value(
+                    value_name="camera_frame_right",
+                    camera_frame=P.CameraFrameValue(
+                        data=self.viewer.read_pixels(camid=3).tobytes(),
                     ),
                 ),
             ],
@@ -153,7 +211,7 @@ class MujocoRunner(Runner):
 
         for simulation_step in range(int(self.eval_config.sim_duration / self.model_info["sim_dt"])):
             if simulation_step % self.model_info["sim_decimation"] == 0:
-                observation = self.create_observation()
+                observation = self.create_observation(simulation_step * self.model_info["sim_dt"])
                 torques_io = self.model(observation)
                 torques = self.model._output_serializer.serialize_io(torques_io, as_dict=True)["joint_torques"]
 

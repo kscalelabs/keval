@@ -52,6 +52,8 @@
       <freejoint name="root"/>
       <site name="imu" size="0.01" pos="0 0 -0.13"/>
       <body name="base">
+        <camera name="camera_left" pos="0 -3.0 0.9010549999999999" xyaxes="1 0 0 0 0 1" />
+        <camera name="camera_right" pos="0 -3.0 0.9010549999999999" xyaxes="1 0 0 0 0 1" />
         <inertial pos="0.00648939 0.00390843 -0.180571" quat="0.999495 -0.0317223 -0.00110485 0.00149824" mass="18.9034" diaginertia="1.33012 0.801658 0.559678" />
         <geom quat="0.000563312 -0.000562864 0.707388 0.706825" type="mesh" rgba="1 1 1 1" mesh="body1-part" contype="1" conaffinity="0" density="0" group="1" class="visualgeom" />
         <geom type="mesh" rgba="1 1 1 1" mesh="body1-part" quat="0.000563312 -0.000562864 0.707388 0.706825" />
@@ -185,6 +187,8 @@
     <actuatorfrc name="R_ankle_y_f" actuator="R_ankle_y" noise="0.001" />
     <framequat name="orientation" objtype="site" noise="0.001" objname="imu" />
     <gyro name="angular-velocity" site="imu" noise="0.005" cutoff="34.9" />
+    <accelerometer name="accelerometer" site="imu" noise="0.005" cutoff="157"/>
+    <magnetometer  name="magnetometer" site="imu"/>
   </sensor>
 
   <keyframe>
