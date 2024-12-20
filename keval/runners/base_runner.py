@@ -7,15 +7,20 @@ TODO:
 
 from abc import ABC, abstractmethod
 
-import torch
-from omegaconf import OmegaConf
+from kinfer.inference.python import ONNXModel
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from keval.metrics import Metrics
+from keval import metrics
 
 
 class Runner(ABC):
     @abstractmethod
-    def __init__(self, eval_config: OmegaConf, model: torch.nn.Module, metrics: Metrics):
+    def __init__(
+        self,
+        eval_config: DictConfig | ListConfig | OmegaConf,
+        model: ONNXModel,
+        metrics: metrics.Metrics,
+    ) -> None:
         """Initializes the runner.
 
         Args:
@@ -25,5 +30,7 @@ class Runner(ABC):
         """
         pass
 
-    def joint_offsets(self) -> dict[tuple[float, float]]:
-        return self.get_joint_offsets()
+    @abstractmethod
+    def run(self) -> list[dict[str, metrics.BaseMetric]]:
+        """Runs the runner."""
+        pass

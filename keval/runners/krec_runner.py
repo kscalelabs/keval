@@ -1,14 +1,19 @@
 """Defines the krec data runner."""
 
-import torch
-from omegaconf import OmegaConf
+from kinfer.inference.python import ONNXModel
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from keval.metrics import Metrics
+from keval import metrics
 from keval.runners.base_runner import Runner
 
 
 class KrecRunner(Runner):
-    def __init__(self, eval_config: OmegaConf, model: torch.nn.Module, metrics: Metrics):
+    def __init__(
+        self,
+        eval_config: DictConfig | ListConfig | OmegaConf,
+        model: ONNXModel,
+        metrics: metrics.Metrics,
+    ) -> None:
         """Initializes the krec data runner.
 
         Args:
@@ -16,10 +21,9 @@ class KrecRunner(Runner):
             model: The model to evaluate.
             metrics: The metrics to use.
         """
-        super().__init__(eval_config, model, metrics)
         self.model = model
         self.eval_config = eval_config
         self.metrics = metrics
 
-    def run(self):
-        pass
+    def run(self) -> list[dict[str, metrics.BaseMetric]]:
+        return []

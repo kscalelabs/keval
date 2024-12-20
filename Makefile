@@ -50,16 +50,16 @@ push-to-pypi: build-for-pypi
 py-files := $(shell find . -name '*.py')
 
 format:
-	@isort $(py-files)
-	@black $(py-files)
-	@ruff format $(py-files)
+	@isort --profile black .
+	@black .
+	@ruff format .
 .PHONY: format
 
 static-checks:
-	@isort --check-only $(py-files)
-	@black --diff --check $(py-files)
-	@ruff check $(py-files)
-	@mypy --install-types --non-interactive $(py-files)
+	@isort --profile black --check --diff  .
+	@black --diff --check .
+	@ruff check .
+	@mypy --install-types --non-interactive .
 .PHONY: lint
 
 # ------------------------ #

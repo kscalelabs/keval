@@ -13,10 +13,11 @@ import torch
 from kinfer import proto as P
 from kinfer.export.pytorch import export_model
 from kinfer.inference.python import ONNXModel
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from keval.evaluator import Evaluator
-from keval.observation import ATTACHED_METADATA, INPUT_SCHEMA, OUTPUT_SCHEMA
+from keval.observation import INPUT_SCHEMA, OUTPUT_SCHEMA
+from keval.runners.mujoco_runner import ATTACHED_METADATA
 
 TEST_MODEL_PATH = Path("test_model.onnx")
 
@@ -85,9 +86,15 @@ class SimpleModel(torch.nn.Module):
         return joint_torques
 
 
-def create_model(save_path: Path) -> str:
-    """Create and export a test model."""
-    # Create and export model
+def create_model(save_path: Path) -> Path | str:
+    """Create and export a test model.
+
+    Args:
+        save_path: The path to save the model.
+
+    Returns:
+        The path to the saved model.
+    """
     config = ModelConfig()
     model = SimpleModel(config)
 
@@ -118,12 +125,12 @@ class TestEvalPipeline(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             yield Path(temp_dir)
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test environment."""
         self.logger = logging.getLogger(__name__)
         self.config = self._load_config()
 
-    def _load_config(self) -> OmegaConf:
+    def _load_config(self) -> ListConfig | DictConfig | OmegaConf:
         """Load and merge configuration files."""
         base_config = OmegaConf.load("configs/base.yaml")
         test_config = OmegaConf.load("tests/test_config.yaml")
@@ -136,7 +143,7 @@ class TestEvalPipeline(unittest.TestCase):
             create_model(model_path)
             model = ONNXModel(model_path)
             # TODO: Remove this
-            model.attached_metadata = ATTACHED_METADATA
+            model.attached_metadata = ATTACHED_METADATA  # type: ignore[assignment]
 
             evaluator = Evaluator(self.config, model, self.logger)
             evaluator.run_eval()

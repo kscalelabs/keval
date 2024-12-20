@@ -1,4 +1,4 @@
-"""Mujoco runner"""
+"""Mujoco runner."""
 
 from pathlib import Path
 
@@ -6,22 +6,32 @@ import mediapy as media
 import mujoco
 import mujoco_viewer
 import numpy as np
-import torch
 from kinfer import proto as P
-from omegaconf import OmegaConf
+from kinfer.inference.python import ONNXModel
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from keval import metrics
-from keval.observation import ATTACHED_METADATA, JOINT_NAMES
+from keval.observation import JOINT_NAMES, FullObservation, ValueType
 from keval.runners.base_runner import Runner
+
+LEFT_CAMERA_ID = 2
+RIGHT_CAMERA_ID = 3
+
+# TODO: to be removed after kinfer updates
+ATTACHED_METADATA = {
+    "sim_dt": 0.01,
+    "sim_decimation": 1,
+    "tau_factor": 1.0,
+}
 
 
 class MujocoRunner(Runner):
     def __init__(
         self,
-        eval_config: OmegaConf,
-        model: torch.nn.Module,
+        eval_config: DictConfig | ListConfig | OmegaConf,
+        model: ONNXModel,
         metrics: metrics.Metrics,
-    ):
+    ) -> None:
         """Initializes the Mujoco runner.
 
         Args:
@@ -29,7 +39,6 @@ class MujocoRunner(Runner):
             model: The model to evaluate.
             metrics: The metrics to use.
         """
-        super().__init__(eval_config, model, metrics)
         self.eval_config = eval_config.eval_envs.locomotion
         self.config = eval_config
 
@@ -56,18 +65,15 @@ class MujocoRunner(Runner):
             width=640 // 2,
         )
         self.record_video = eval_config.eval_envs.locomotion.record_video
-        self.camera_frames = []
+        self.camera_frames: list[np.ndarray] = []
 
         self.x_vel_cmd = 0.4
         self.y_vel_cmd = 0.0
         self.yaw_vel_cmd = 0.0
 
-    def get_joint_offsets(self) -> dict[tuple[float, float]]:
-        pass
-
     def _init_locomotion_metrics(
         self,
-    ) -> dict[metrics.MetricsType, metrics.BaseMetric]:
+    ) -> dict[str, metrics.BaseMetric]:
         """Initialize the metrics for the locomotion suite.
 
         Returns:
@@ -85,13 +91,13 @@ class MujocoRunner(Runner):
 
     def update_locomotion_metrics(
         self,
-        local_metrics: dict[metrics.MetricsType, metrics.BaseMetric],
+        local_metrics: dict[str, metrics.BaseMetric],
         commanded_velocity: list[float],
-    ) -> None:
+    ) -> dict[str, metrics.BaseMetric]:
         """Update the locomotion metrics.
 
         Args:
-            metrics: The metrics to update.
+            local_metrics: The metrics to update.
             commanded_velocity: The commanded velocity.
 
         Returns:
@@ -109,7 +115,7 @@ class MujocoRunner(Runner):
 
         return local_metrics
 
-    def create_observation(self, simulation_time: float) -> None:
+    def create_observation(self, simulation_time: float) -> P.IO:
         """Create the observation for the model.
 
         Args:
@@ -118,86 +124,107 @@ class MujocoRunner(Runner):
         Returns:
             The observation for the model.
         """
+        joint_positions = P.Value(
+            value_name=ValueType.JOINT_POSITIONS.value,
+            joint_positions=P.JointPositionsValue(
+                values=[
+                    P.JointPositionValue(
+                        joint_name=name,
+                        value=self.mj_data.qpos[-len(JOINT_NAMES) + index],
+                        unit=P.JointPositionUnit.RADIANS,
+                    )
+                    for index, name in enumerate(JOINT_NAMES)
+                ]
+            ),
+        )
+
+        joint_velocities = P.Value(
+            value_name=ValueType.JOINT_VELOCITIES.value,
+            joint_velocities=P.JointVelocitiesValue(
+                values=[
+                    P.JointVelocityValue(
+                        joint_name=name,
+                        value=self.mj_data.qvel[-len(JOINT_NAMES) + index],
+                        unit=P.JointVelocityUnit.RADIANS_PER_SECOND,
+                    )
+                    for index, name in enumerate(JOINT_NAMES)
+                ]
+            ),
+        )
+
+        vector_command = P.Value(
+            value_name=ValueType.VECTOR_COMMAND.value,
+            vector_command=P.VectorCommandValue(
+                values=[self.x_vel_cmd, self.y_vel_cmd, self.yaw_vel_cmd],
+            ),
+        )
+
+        imu = P.Value(
+            value_name=ValueType.IMU.value,
+            imu=P.ImuValue(
+                linear_acceleration=P.ImuAccelerometerValue(
+                    x=self.mj_data.sensor("accelerometer").data[0],
+                    y=self.mj_data.sensor("accelerometer").data[1],
+                    z=self.mj_data.sensor("accelerometer").data[2],
+                ),
+                angular_velocity=P.ImuGyroscopeValue(
+                    x=self.mj_data.sensor("angular-velocity").data[0],
+                    y=self.mj_data.sensor("angular-velocity").data[1],
+                    z=self.mj_data.sensor("angular-velocity").data[2],
+                ),
+                magnetic_field=P.ImuMagnetometerValue(
+                    x=self.mj_data.sensor("magnetometer").data[0],
+                    y=self.mj_data.sensor("magnetometer").data[1],
+                    z=self.mj_data.sensor("magnetometer").data[2],
+                ),
+            ),
+        )
+
         seconds = int(simulation_time)
         nanos = int((simulation_time - seconds) * 1e9)
-
-        inputs = P.IO(
-            values=[
-                P.Value(
-                    value_name="joint_positions",
-                    joint_positions=P.JointPositionsValue(
-                        values=[
-                            P.JointPositionValue(
-                                joint_name=name,
-                                value=self.mj_data.qpos[-len(JOINT_NAMES) + index],
-                                unit=P.JointPositionUnit.RADIANS,
-                            )
-                            for index, name in enumerate(JOINT_NAMES)
-                        ]
-                    ),
-                ),
-                P.Value(
-                    value_name="joint_velocities",
-                    joint_velocities=P.JointVelocitiesValue(
-                        values=[
-                            P.JointVelocityValue(
-                                joint_name=name,
-                                value=self.mj_data.qvel[-len(JOINT_NAMES) + index],
-                                unit=P.JointVelocityUnit.RADIANS_PER_SECOND,
-                            )
-                            for index, name in enumerate(JOINT_NAMES)
-                        ]
-                    ),
-                ),
-                P.Value(
-                    value_name="vector_command",
-                    vector_command=P.VectorCommandValue(values=[self.x_vel_cmd, self.y_vel_cmd, self.yaw_vel_cmd]),
-                ),
-                P.Value(
-                    value_name="imu",
-                    imu=P.ImuValue(
-                        linear_acceleration=P.ImuAccelerometerValue(
-                            x=self.mj_data.sensor("accelerometer").data[0],
-                            y=self.mj_data.sensor("accelerometer").data[1],
-                            z=self.mj_data.sensor("accelerometer").data[2],
-                        ),
-                        angular_velocity=P.ImuGyroscopeValue(
-                            x=self.mj_data.sensor("angular-velocity").data[0],
-                            y=self.mj_data.sensor("angular-velocity").data[1],
-                            z=self.mj_data.sensor("angular-velocity").data[2],
-                        ),
-                        magnetic_field=P.ImuMagnetometerValue(
-                            x=self.mj_data.sensor("magnetometer").data[0],
-                            y=self.mj_data.sensor("magnetometer").data[1],
-                            z=self.mj_data.sensor("magnetometer").data[2],
-                        ),
-                    ),
-                ),
-                P.Value(
-                    value_name="timestamp",
-                    timestamp=P.TimestampValue(
-                        seconds=seconds,
-                        nanos=nanos,
-                    ),
-                ),
-                P.Value(
-                    value_name="camera_frame_left",
-                    camera_frame=P.CameraFrameValue(
-                        data=self.viewer.read_pixels(camid=2).tobytes(),
-                    ),
-                ),
-                P.Value(
-                    value_name="camera_frame_right",
-                    camera_frame=P.CameraFrameValue(
-                        data=self.viewer.read_pixels(camid=3).tobytes(),
-                    ),
-                ),
-            ],
+        timestamp = P.Value(
+            value_name=ValueType.TIMESTAMP.value,
+            timestamp=P.TimestampValue(
+                seconds=seconds,
+                nanos=nanos,
+            ),
         )
+
+        camera_frame_left = P.Value(
+            value_name=ValueType.CAMERA_FRAME_LEFT.value,
+            camera_frame=P.CameraFrameValue(
+                data=self.viewer.read_pixels(camid=LEFT_CAMERA_ID).tobytes(),
+            ),
+        )
+
+        camera_frame_right = P.Value(
+            value_name=ValueType.CAMERA_FRAME_RIGHT.value,
+            camera_frame=P.CameraFrameValue(
+                data=self.viewer.read_pixels(camid=RIGHT_CAMERA_ID).tobytes(),
+            ),
+        )
+
+        full_observation = FullObservation(
+            joint_positions=joint_positions,
+            joint_velocities=joint_velocities,
+            vector_command=vector_command,
+            imu=imu,
+            timestamp=timestamp,
+            camera_frame_left=camera_frame_left,
+            camera_frame_right=camera_frame_right,
+        )
+
+        # Assemble observation space for the model
+        inputs = P.IO(values=[])
+        for key in self.model.schema_input_keys:
+            try:
+                inputs.values.append(getattr(full_observation, key))
+            except AttributeError:
+                raise AttributeError(f"Attribute {key} not found in FullObservation")
 
         return inputs
 
-    def run_one_rollout(self, index) -> None:
+    def run_one_rollout(self, index: int) -> dict[str, metrics.BaseMetric]:
         """Runs one rollout.
 
         Args:
@@ -237,7 +264,7 @@ class MujocoRunner(Runner):
 
         return local_metrics
 
-    def run(self) -> None:
+    def run(self) -> list[dict[str, metrics.BaseMetric]]:
         """Runs the Mujoco simulations.
 
         TODO: add parallization working with ONNX session (thread safe)

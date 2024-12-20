@@ -9,7 +9,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 
 class MetricsType(Enum):
@@ -21,7 +21,7 @@ class MetricsType(Enum):
 
 
 class BaseMetric(ABC):
-    def __init__(self, name: str):
+    def __init__(self, name: str | MetricsType) -> None:
         """Basic metric class.
 
         Args:
@@ -30,27 +30,27 @@ class BaseMetric(ABC):
         self.name = name
 
     @abstractmethod
-    def add_step(self, data: Any):
+    def add_step(self, *args: Any, **kwargs: Any) -> None:
         """Process data to compute the metric."""
         raise NotImplementedError("Each metric must implement the add_step method.")
 
     @abstractmethod
-    def compile(self):
+    def compile(self, *args: Any, **kwargs: Any) -> np.ndarray | float | int | None:
         """Compile the metric."""
         raise NotImplementedError("Each metric must implement the compile method.")
 
 
 class TrackingError(BaseMetric):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name=MetricsType.TRACKING_ERROR)
-        self.commanded_velocity = []
-        self.observed_velocity = []
+        self.commanded_velocity: list[np.ndarray] = []
+        self.observed_velocity: list[np.ndarray] = []
 
-    def add_step(self, observed_velocity: list[float], commanded_velocity: list[float]):
+    def add_step(self, observed_velocity: np.ndarray, commanded_velocity: np.ndarray) -> None:
         self.observed_velocity.append(observed_velocity)
         self.commanded_velocity.append(commanded_velocity)
 
-    def compile(self):
+    def compile(self) -> np.ndarray:
         """Average tracking error over all steps for each velocity component."""
         observed = np.array(self.observed_velocity)
         commanded = np.array(self.commanded_velocity)
@@ -58,7 +58,7 @@ class TrackingError(BaseMetric):
         error_per_component = np.mean(np.abs(observed - commanded), axis=0)
         return error_per_component
 
-    def save_plot(self, index: int, save_dir: Path):
+    def save_plot(self, index: int, save_dir: Path) -> None:
         """Plot tracking error for x, y, and angular velocity components."""
         _, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
 
@@ -97,69 +97,69 @@ class TrackingError(BaseMetric):
 
 
 class EpisodeDuration(BaseMetric):
-    def __init__(self, expected_length: int):
+    def __init__(self, expected_length: int) -> None:
         super().__init__(name=MetricsType.EPISODE_DURATION)
         self.expected_length = expected_length
         self.step_count = 0
 
-    def add_step(self):
+    def add_step(self) -> None:
         self.step_count += 1
 
-    def compile(self):
+    def compile(self) -> float:
         """Average episode duration over all steps."""
         average_duration = self.step_count / self.expected_length
         return average_duration
 
 
 class PositionError(BaseMetric):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name=MetricsType.POSITION_ERROR)
-        self.commanded_position = []
-        self.observed_position = []
+        self.commanded_position: list[np.ndarray] = []
+        self.observed_position: list[np.ndarray] = []
 
-    def add_step(self, commanded_position: np.ndarray, observed_position: np.ndarray):
+    def add_step(self, commanded_position: np.ndarray, observed_position: np.ndarray) -> None:
         self.commanded_position.append(commanded_position)
         self.observed_position.append(observed_position)
 
-    def compile(self):
+    def compile(self) -> None:
         """Average position error over all steps."""
-        average_error = np.mean(self.observed_position - self.commanded_position)
+        average_error = np.mean(np.asarray(self.observed_position) - np.asarray(self.commanded_position))
 
         return average_error
 
-    def save_plot(self, index: int, save_dir: Path):
+    def save_plot(self, index: int, save_dir: Path) -> None:
         plt.plot(self.commanded_position, self.observed_position, "o")
         plt.savefig(save_dir / f"position_error_{index}.png")
         plt.close()
 
 
 class ContactForces(BaseMetric):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name=MetricsType.CONTACT_FORCES)
-        self.contact_forces = []
+        self.contact_forces: list[list[float]] = []
 
-    def add_step(self, contact_forces: list[float]):
+    def add_step(self, contact_forces: list[float]) -> None:
         self.contact_forces.append(contact_forces)
 
-    def compile(self):
+    def compile(self) -> None:
         pass
 
-    def save_plot(self, index: int, save_dir: Path):
+    def save_plot(self, index: int, save_dir: Path) -> None:
         pass
 
 
 class Metrics:
-    def __init__(self, config: OmegaConf, logger: logging.Logger):
+    def __init__(self, config: DictConfig | ListConfig | OmegaConf, logger: logging.Logger) -> None:
         self.config = config
         self.logger = logger
 
-    def compile(self, metrics: list[list[BaseMetric]]):
+    def compile(self, metrics: list[dict[str, BaseMetric]] | list[list[BaseMetric]]) -> None:
         assert self.config.eval_envs.locomotion.eval_runs == len(
             metrics
         ), "Number of metrics does not match number of runs"
         save_dir = Path(self.config.logging.log_dir, "locomotion")
 
-        aggregated_metrics = {metric_name: [] for metric_name in metrics[0].keys()}
+        aggregated_metrics: dict[str, list[float | np.ndarray]] = {metric_name: [] for metric_name in metrics[0].keys()}
 
         # Collect all metric values across runs
         for index, metrics_run in enumerate(metrics):
@@ -170,18 +170,18 @@ class Metrics:
                 if hasattr(metric, "save_plot"):
                     metric.save_plot(index, save_dir)
 
-        averaged_metrics = {}
+        averaged_metrics: dict[str, float | np.ndarray] = {}
         for metric_name, values in aggregated_metrics.items():
-            if isinstance(values[0], np.ndarray):
-                averaged_metrics[metric_name] = np.mean(values, axis=0).tolist()
+            if values and isinstance(values[0], np.ndarray):
+                averaged_metrics[metric_name] = np.mean(np.asarray(values), axis=0).tolist()
             else:
-                averaged_metrics[metric_name] = float(np.mean(values))
+                averaged_metrics[metric_name] = float(np.mean(np.asarray(values)))
 
         # Save to YAML file
         with open(save_dir / "averaged_metrics.yaml", "w") as f:
             yaml.dump(averaged_metrics, f)
 
-        self.logger.info(f"Averaged metrics: {averaged_metrics}")
+        self.logger.info("Averaged metrics: %s", averaged_metrics)
 
-    def plot(self):
+    def plot(self) -> None:
         pass

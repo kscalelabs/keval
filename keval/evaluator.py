@@ -4,7 +4,7 @@ import logging
 from enum import Enum
 
 from kinfer.inference.python import ONNXModel
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from keval.metrics import Metrics
 from keval.runners.krec_runner import KrecRunner
@@ -19,7 +19,7 @@ class RunnerType(Enum):
 
 
 class Evaluator:
-    def __init__(self, config: OmegaConf, model: ONNXModel, logger: logging.Logger):
+    def __init__(self, config: OmegaConf | DictConfig | ListConfig, model: ONNXModel, logger: logging.Logger) -> None:
         """Initializes the evaluator.
 
         Args:

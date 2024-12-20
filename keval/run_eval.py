@@ -55,7 +55,7 @@ if __name__ == "__main__":
             )
         ]
     else:
-        providers = ["CPUExecutionProvider"]
+        providers = [("CPUExecutionProvider", {})]
 
     sess_options = ort.SessionOptions()
     sess_options.inter_op_num_threads = 10
