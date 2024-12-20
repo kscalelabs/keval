@@ -20,16 +20,19 @@ class MetricsType(Enum):
     CONTACT_FORCES = "CONTACT_FORCES"
 
 
-# Base Metric Interface
 class BaseMetric(ABC):
     def __init__(self, name: str):
+        """Basic metric class.
+
+        Args:
+            name: The name of the metric.
+        """
         self.name = name
-        self.value = None
 
     @abstractmethod
     def add_step(self, data: Any):
         """Process data to compute the metric."""
-        raise NotImplementedError("Each metric must implement the run method.")
+        raise NotImplementedError("Each metric must implement the add_step method.")
 
     @abstractmethod
     def compile(self):
@@ -57,7 +60,7 @@ class TrackingError(BaseMetric):
 
     def save_plot(self, index: int, save_dir: Path):
         """Plot tracking error for x, y, and angular velocity components."""
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
+        _, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
 
         # Convert lists to numpy arrays for easier indexing
         cmd_vel = np.array(self.commanded_velocity)

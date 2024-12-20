@@ -2,6 +2,7 @@
 
 from kinfer import proto as P
 
+# TODO: to be removed after kinfer updates
 ATTACHED_METADATA = {
     "sim_dt": 0.01,
     "sim_decimation": 1,
@@ -23,7 +24,7 @@ JOINT_NAMES = [
 ]
 
 
-input_schema = P.IOSchema(
+INPUT_SCHEMA = P.IOSchema(
     values=[
         P.ValueSchema(
             value_name="joint_positions",
@@ -79,20 +80,7 @@ input_schema = P.IOSchema(
     ]
 )
 
-
-# output_schema = P.IOSchema(
-#     values=[
-#         P.ValueSchema(
-#             value_name="joint_torques",
-#             state_tensor=P.StateTensorSchema(
-#                 shape=[1, 10],
-#                 dtype=P.DType.FP32,
-#             ),
-#         ),
-#     ]
-# )
-
-output_schema = P.IOSchema(
+OUTPUT_SCHEMA = P.IOSchema(
     values=[
         P.ValueSchema(
             value_name="joint_torques",

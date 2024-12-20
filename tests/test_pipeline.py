@@ -16,11 +16,7 @@ from kinfer.inference.python import ONNXModel
 from omegaconf import OmegaConf
 
 from keval.evaluator import Evaluator
-from keval.observation import (
-    ATTACHED_METADATA,
-    input_schema,
-    output_schema,
-)
+from keval.observation import ATTACHED_METADATA, INPUT_SCHEMA, OUTPUT_SCHEMA
 
 TEST_MODEL_PATH = Path("test_model.onnx")
 
@@ -100,8 +96,8 @@ def create_model(save_path: Path) -> str:
     exported_model = export_model(
         model=jit_model,
         schema=P.ModelSchema(
-            input_schema=input_schema,
-            output_schema=output_schema,
+            input_schema=INPUT_SCHEMA,
+            output_schema=OUTPUT_SCHEMA,
         ),
     )
     onnx.save_model(exported_model, save_path)
