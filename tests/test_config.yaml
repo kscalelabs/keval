@@ -1,0 +1,20 @@
+model_path: "test_model.onnx"
+embodiment: "gpr"
+
+eval_suites:
+  locomotion: true
+
+eval_envs:
+  locomotion:
+    seed: 11
+    eval_runs: 1
+    sim_duration: .2
+    record_video: true
+
+    metrics:
+      - success_rate
+      - mean_episode_length
+
+logging:
+  log_dir: "logs/tests/"
+  save_video: true

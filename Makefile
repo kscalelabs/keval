@@ -5,7 +5,7 @@ keval
 
 # Installing
 
-1. Create a new Conda environment: `conda create --name keval python=3.11`
+1. Create a new Conda environment: `conda create --name keval python=3.12`
 2. Activate the environment: `conda activate keval`
 3. Install the package: `make install-dev`
 
@@ -26,6 +26,13 @@ all:
 #        PyPI Build        #
 # ------------------------ #
 
+install-dev:
+	@pip install --verbose -e '.[dev]'
+
+install:
+	@kol run onshape link TODO --robot_path keval/resources/gpr/
+	@pip install --verbose -e .
+
 build-for-pypi:
 	@pip install --verbose build wheel twine
 	@python -m build --sdist --wheel --outdir dist/ .
@@ -43,14 +50,16 @@ push-to-pypi: build-for-pypi
 py-files := $(shell find . -name '*.py')
 
 format:
-	@black $(py-files)
-	@ruff format $(py-files)
+	@isort --profile black .
+	@black .
+	@ruff format .
 .PHONY: format
 
 static-checks:
-	@black --diff --check $(py-files)
-	@ruff check $(py-files)
-	@mypy --install-types --non-interactive $(py-files)
+	@isort --profile black --check --diff  .
+	@black --diff --check .
+	@ruff check .
+	@mypy --install-types --non-interactive .
 .PHONY: lint
 
 # ------------------------ #

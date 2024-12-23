@@ -11,6 +11,9 @@ __pycache__/
 .ruff_cache/
 .dmypy.json
 
+# Mac
+.DS_Store
+
 # Databases
 *.db
 
@@ -19,3 +22,7 @@ build/
 dist/
 *.so
 out*/
+
+# KEval artifacts
+logs/
+test_model.onnx

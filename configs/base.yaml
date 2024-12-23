@@ -1,0 +1,51 @@
+model_path: "model.onnx"
+embodiment: "gpr"
+resources_dir: "keval/resources"
+
+eval_suites:
+  locomotion: false
+  krec: false
+  manipulation_mani_skill: false
+  whole_body_control: false
+
+eval_envs:
+  locomotion:
+    seed: 42
+    eval_runs: 10
+    sim_duration: 10
+    record_video: false
+  
+    metrics:
+      - episode_length
+      - episode_reward
+      - position_error
+      - tracking_error
+      - contact_forces
+
+
+  krec:
+    datasets:
+      - dataset_path: "data/close_drawer"
+        eval_runs: 1
+        seed: 42
+      - dataset_path: "data/pickup"
+        eval_runs: 1
+        seed: 42
+    metrics:
+      - l2_error
+      - mse
+
+  manipulation_mani_skill:
+    max_steps: 1000
+    seed: 42
+    eval_runs: 10
+    sim_duration: 20
+    record_video: false
+
+    metrics:
+      - l2_error
+      - mse
+
+logging:
+  log_dir: "logs"
+  save_video: true
