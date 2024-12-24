@@ -1,0 +1,18 @@
+model_path: "gpr_walking.onnx"
+embodiment: "gpr"
+
+eval_suites:
+  krec: true
+
+eval_envs:
+  krec:
+    dataset_path: "recordings"
+    eval_runs: 1
+    seed: 42
+    metrics:
+      - l2_error
+      - mse
+
+logging:
+  log_dir: "logs"
+  save_video: true

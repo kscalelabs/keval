@@ -16,23 +16,24 @@ from kinfer.inference.python import ONNXModel
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from keval.evaluator import Evaluator
-from keval.observation import INPUT_SCHEMA, OUTPUT_SCHEMA
+from keval.observation import JOINT_POSITIONS_SCHEMA, INPUT_SCHEMA, OUTPUT_SCHEMA
 from keval.runners.mujoco_runner import ATTACHED_METADATA
 
 TEST_MODEL_PATH = Path("test_model.onnx")
 
 
+
 @dataclass
 class ModelConfig:
     joint_positions_length: int = 10
-    joint_velocities_length: int = 10
-    vector_command_length: int = 3
-    imu_length: int = 9
-    timestamp_length: int = 1
+    # joint_velocities_length: int = 10
+    # vector_command_length: int = 3
+    # imu_length: int = 9
+    # timestamp_length: int = 1
     hidden_size: int = 10
     num_layers: int = 2
-    camera_frame_left_length: int = 640 * 480 * 3
-    camera_frame_right_length: int = 640 * 480 * 3
+    # camera_frame_left_length: int = 640 * 480 * 3
+    # camera_frame_right_length: int = 640 * 480 * 3
 
 
 class SimpleModel(torch.nn.Module):
@@ -44,12 +45,12 @@ class SimpleModel(torch.nn.Module):
 
         total_input_features = (
             config.joint_positions_length
-            + config.joint_velocities_length
-            + config.vector_command_length
-            + config.imu_length
-            + config.timestamp_length
-            + config.camera_frame_left_length
-            + config.camera_frame_right_length
+            # + config.joint_velocities_length
+            # + config.vector_command_length
+            # + config.imu_length
+            # + config.timestamp_length
+            # + config.camera_frame_left_length
+            # + config.camera_frame_right_length
         )
         in_features = total_input_features
 
@@ -63,22 +64,22 @@ class SimpleModel(torch.nn.Module):
     def forward(
         self,
         joint_positions: torch.Tensor,
-        joint_velocities: torch.Tensor,
-        vector_command: torch.Tensor,
-        imu: torch.Tensor,
-        timestamp: torch.Tensor,
-        camera_frame_left: torch.Tensor,
-        camera_frame_right: torch.Tensor,
+        # joint_velocities: torch.Tensor,
+        # vector_command: torch.Tensor,
+        # imu: torch.Tensor,
+        # timestamp: torch.Tensor,
+        # camera_frame_left: torch.Tensor,
+        # camera_frame_right: torch.Tensor,
     ) -> torch.Tensor:
         combined_input = torch.cat(
             [
                 joint_positions,
-                joint_velocities,
-                vector_command,
-                imu.reshape(-1),
-                timestamp,
-                camera_frame_left.reshape(-1),
-                camera_frame_right.reshape(-1),
+                # joint_velocities,
+                # vector_command,
+                # imu.reshape(-1),
+                # timestamp,
+                # camera_frame_left.reshape(-1),
+                # camera_frame_right.reshape(-1),
             ],
             dim=-1,
         )
@@ -103,7 +104,7 @@ def create_model(save_path: Path) -> Path | str:
     exported_model = export_model(
         model=jit_model,
         schema=P.ModelSchema(
-            input_schema=INPUT_SCHEMA,
+            input_schema=JOINT_POSITIONS_SCHEMA,
             output_schema=OUTPUT_SCHEMA,
         ),
     )
@@ -112,7 +113,7 @@ def create_model(save_path: Path) -> Path | str:
     return save_path
 
 
-class TestEvalPipeline(unittest.TestCase):
+class TestEvalDataPipeline(unittest.TestCase):
     """Test the full evaluation pipeline."""
 
     @contextmanager
@@ -133,11 +134,11 @@ class TestEvalPipeline(unittest.TestCase):
     def _load_config(self) -> ListConfig | DictConfig | OmegaConf:
         """Load and merge configuration files."""
         base_config = OmegaConf.load("configs/base.yaml")
-        test_config = OmegaConf.load("tests/test_config.yaml")
+        test_config = OmegaConf.load("tests/test_krec_config.yaml")
         return OmegaConf.merge(base_config, test_config)
 
-    def test_full_pipeline(self) -> None:
-        """Test full pipeline."""
+    def test_krec_pipeline(self) -> None:
+        """Test krec pipeline."""
         with self.temp_test_dir() as test_dir:
             model_path = test_dir / "test_model.onnx"
             create_model(model_path)
@@ -148,7 +149,7 @@ class TestEvalPipeline(unittest.TestCase):
             evaluator = Evaluator(self.config, model, self.logger)
             evaluator.run_eval()
 
-            data_dir = Path(self.config.logging.log_dir, "locomotion")
+            data_dir = Path(self.config.logging.log_dir, "data")
             video_files = list(data_dir.glob("*.mp4"))
             self.assertEqual(
                 len(video_files),

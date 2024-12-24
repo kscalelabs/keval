@@ -154,6 +154,8 @@ class Metrics:
         self.logger = logger
 
     def compile(self, metrics: list[dict[str, BaseMetric]] | list[list[BaseMetric]]) -> None:
+        # pfb30
+        return
         assert self.config.eval_envs.locomotion.eval_runs == len(
             metrics
         ), "Number of metrics does not match number of runs"

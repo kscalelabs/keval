@@ -22,15 +22,7 @@ eval_envs:
       - tracking_error
       - contact_forces
 
-
   krec:
-    datasets:
-      - dataset_path: "data/close_drawer"
-        eval_runs: 1
-        seed: 42
-      - dataset_path: "data/pickup"
-        eval_runs: 1
-        seed: 42
     metrics:
       - l2_error
       - mse

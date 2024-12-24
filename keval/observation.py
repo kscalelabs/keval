@@ -31,6 +31,11 @@ class ValueType(Enum):
 
 
 @dataclass
+class JointPositionsValue:
+    joint_positions: P.JointPositionsValue
+
+
+@dataclass
 class FullObservation:
     joint_positions: P.JointPositionsValue
     joint_velocities: P.JointVelocitiesValue
@@ -39,6 +44,19 @@ class FullObservation:
     timestamp: P.TimestampValue
     camera_frame_left: P.CameraFrameValue
     camera_frame_right: P.CameraFrameValue
+
+
+JOINT_POSITIONS_SCHEMA =  P.IOSchema(
+    values=[
+        P.ValueSchema(
+        value_name=ValueType.JOINT_POSITIONS.value,
+        joint_positions=P.JointPositionsSchema(
+            joint_names=JOINT_NAMES,
+                unit=P.JointPositionUnit.RADIANS,
+            ),
+        ),
+    ]
+)
 
 
 INPUT_SCHEMA = P.IOSchema(

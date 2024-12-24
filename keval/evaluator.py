@@ -47,7 +47,7 @@ class Evaluator:
 
         if self.config.eval_suites.krec:
             self.logger.info("Running krec evaluation")
-            pass
+            self.global_metrics.compile(self.runners[RunnerType.KREC].run())
 
         if self.config.eval_suites.manipulation_mani_skill:
             self.logger.info("Running manipulation skill evaluation")

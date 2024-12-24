@@ -25,4 +25,5 @@ out*/
 
 # KEval artifacts
 logs/
+data/
 test_model.onnx
