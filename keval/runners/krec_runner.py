@@ -1,4 +1,8 @@
-"""Defines the krec data runner."""
+"""Defines the krec data runner.
+
+TODO:
+1. Add batch handling in the onnx definition.
+"""
 
 from kinfer import proto as P
 from kinfer.inference.python import ONNXModel
@@ -44,6 +48,28 @@ class KrecRunner(Runner):
         }
         return local_metrics
 
+    def update_krec_metrics(
+        self,
+        local_metrics: dict[str, metrics.BaseMetric],
+        batch: dict,
+        output: list[float],
+    ) -> dict[str, metrics.BaseMetric]:
+        """Update the locomotion metrics.
+
+        Args:
+            local_metrics: The metrics to update.
+            commanded_velocity: The commanded velocity.
+
+        Returns:
+            The updated metrics.
+        """
+        local_metrics[metrics.MetricsType.POSITION_ERROR.name].add_step(
+            observed_position=batch["joint_pos"],
+            commanded_position=output,
+        )
+
+        return local_metrics
+
     def create_observation(self, batch) -> P.IO:
         """Create the observation for the model.
 
@@ -69,80 +95,8 @@ class KrecRunner(Runner):
                 ),
             )
 
-            # joint_velocities = P.Value(
-            #     value_name=ValueType.JOINT_VELOCITIES.value,
-            #     joint_velocities=P.JointVelocitiesValue(
-            #         values=[
-            #             P.JointVelocityValue(
-            #                 joint_name=name,
-            #                 value=datapoint["joint_vel"],
-            #                 unit=P.JointVelocityUnit.RADIANS_PER_SECOND,
-            #             )
-            #             for index, name in enumerate(JOINT_NAMES)
-            #         ]
-            #     ),
-            # )
-
-            # vector_command = P.Value(
-            #     value_name=ValueType.VECTOR_COMMAND.value,
-            #     vector_command=P.VectorCommandValue(
-            #         values=[self.x_vel_cmd, self.y_vel_cmd, self.yaw_vel_cmd],
-            #     ),
-            # )
-
-            # imu = P.Value(
-            #     value_name=ValueType.IMU.value,
-            #     imu=P.ImuValue(
-            #         linear_acceleration=P.ImuAccelerometerValue(
-            #             x=self.mj_data.sensor("accelerometer").data[0],
-            #             y=self.mj_data.sensor("accelerometer").data[1],
-            #             z=self.mj_data.sensor("accelerometer").data[2],
-            #         ),
-            #         angular_velocity=P.ImuGyroscopeValue(
-            #             x=self.mj_data.sensor("angular-velocity").data[0],
-            #             y=self.mj_data.sensor("angular-velocity").data[1],
-            #             z=self.mj_data.sensor("angular-velocity").data[2],
-            #         ),
-            #         magnetic_field=P.ImuMagnetometerValue(
-            #             x=self.mj_data.sensor("magnetometer").data[0],
-            #             y=self.mj_data.sensor("magnetometer").data[1],
-            #             z=self.mj_data.sensor("magnetometer").data[2],
-            #         ),
-            #     ),
-            # )
-
-            # seconds = int(simulation_time)
-            # nanos = int((simulation_time - seconds) * 1e9)
-            # timestamp = P.Value(
-            #     value_name=ValueType.TIMESTAMP.value,
-            #     timestamp=P.TimestampValue(
-            #         seconds=seconds,
-            #         nanos=nanos,
-            #     ),
-            # )
-
-            # camera_frame_left = P.Value(
-            #     value_name=ValueType.CAMERA_FRAME_LEFT.value,
-            #     camera_frame=P.CameraFrameValue(
-            #         data=self.viewer.read_pixels(camid=LEFT_CAMERA_ID).tobytes(),
-            #     ),
-            # )
-
-            # camera_frame_right = P.Value(
-            #     value_name=ValueType.CAMERA_FRAME_RIGHT.value,
-            #     camera_frame=P.CameraFrameValue(
-            #         data=self.viewer.read_pixels(camid=RIGHT_CAMERA_ID).tobytes(),
-            #     ),
-            # )
-
             full_observation = JointPositionsValue(
                 joint_positions=joint_positions,
-                # joint_velocities=joint_velocities,
-                # vector_command=vector_command,
-                # imu=imu,
-                # timestamp=timestamp,
-                # camera_frame_left=camera_frame_left,
-                # camera_frame_right=camera_frame_right,
             )
 
             # Assemble observation space for the model
@@ -154,15 +108,19 @@ class KrecRunner(Runner):
                     raise AttributeError(f"Attribute {key} not found in FullObservation")
 
             schema_batch.append(inputs)
-        breakpoint()
-        return schema_batch
+
+        if len(schema_batch) == 1:
+            return schema_batch[0]
+        else:
+            return schema_batch
 
     def run(self) -> list[dict[str, metrics.BaseMetric]]:
         local_metrics = self._init_krec_metrics()
 
         for batch in self.dataloader:
             observation = self.create_observation(batch)
-            output = self.model(observation)
-            local_metrics = self.update_locomotion_metrics(local_metrics, output)
+            output_io = self.model(observation)
+            output = self.model._output_serializer.serialize_io(output_io, as_dict=True)["joint_torques"]
+            local_metrics = self.update_krec_metrics(local_metrics, batch, output)
 
-        return []
+        return local_metrics

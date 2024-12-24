@@ -11,6 +11,8 @@ import numpy as np
 import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
+from keval.observation import JOINT_NAMES
+
 
 class MetricsType(Enum):
     EPISODE_DURATION = "EPISODE_DURATION"
@@ -116,6 +118,7 @@ class PositionError(BaseMetric):
         super().__init__(name=MetricsType.POSITION_ERROR)
         self.commanded_position: list[np.ndarray] = []
         self.observed_position: list[np.ndarray] = []
+        self.num_joints = len(JOINT_NAMES)
 
     def add_step(self, commanded_position: np.ndarray, observed_position: np.ndarray) -> None:
         self.commanded_position.append(commanded_position)
@@ -123,12 +126,18 @@ class PositionError(BaseMetric):
 
     def compile(self) -> None:
         """Average position error over all steps."""
-        average_error = np.mean(np.asarray(self.observed_position) - np.asarray(self.commanded_position))
+        average_error = np.mean(
+            np.asarray(self.observed_position)[:, :, :self.num_joints] - np.asarray(self.commanded_position)[:, :self.num_joints]
+        )
 
         return average_error
 
     def save_plot(self, index: int, save_dir: Path) -> None:
-        plt.plot(self.commanded_position, self.observed_position, "o")
+        plt.plot(
+            np.asarray(self.observed_position)[:, 0, :self.num_joints],
+            np.asarray(self.commanded_position)[:, :self.num_joints],
+            "o",
+        )
         plt.savefig(save_dir / f"position_error_{index}.png")
         plt.close()
 
@@ -154,13 +163,16 @@ class Metrics:
         self.logger = logger
 
     def compile(self, metrics: list[dict[str, BaseMetric]] | list[list[BaseMetric]]) -> None:
-        # pfb30
-        return
-        assert self.config.eval_envs.locomotion.eval_runs == len(
-            metrics
-        ), "Number of metrics does not match number of runs"
-        save_dir = Path(self.config.logging.log_dir, "locomotion")
-
+        if self.config.eval_suites.locomotion:
+            assert self.config.eval_suites.locomotion.eval_runs == len(
+                metrics
+            ), "Number of metrics does not match number of runs"
+            save_dir = Path(self.config.logging.log_dir, "locomotion")
+        elif self.config.eval_suites.krec:
+            save_dir = Path(self.config.logging.log_dir, "krec")
+        else:
+            raise ValueError("No evaluation suite selected")
+        metrics = [metrics]
         aggregated_metrics: dict[str, list[float | np.ndarray]] = {metric_name: [] for metric_name in metrics[0].keys()}
 
         # Collect all metric values across runs

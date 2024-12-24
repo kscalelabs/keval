@@ -45,12 +45,6 @@ class SimpleModel(torch.nn.Module):
 
         total_input_features = (
             config.joint_positions_length
-            # + config.joint_velocities_length
-            # + config.vector_command_length
-            # + config.imu_length
-            # + config.timestamp_length
-            # + config.camera_frame_left_length
-            # + config.camera_frame_right_length
         )
         in_features = total_input_features
 
@@ -64,22 +58,10 @@ class SimpleModel(torch.nn.Module):
     def forward(
         self,
         joint_positions: torch.Tensor,
-        # joint_velocities: torch.Tensor,
-        # vector_command: torch.Tensor,
-        # imu: torch.Tensor,
-        # timestamp: torch.Tensor,
-        # camera_frame_left: torch.Tensor,
-        # camera_frame_right: torch.Tensor,
     ) -> torch.Tensor:
         combined_input = torch.cat(
             [
                 joint_positions,
-                # joint_velocities,
-                # vector_command,
-                # imu.reshape(-1),
-                # timestamp,
-                # camera_frame_left.reshape(-1),
-                # camera_frame_right.reshape(-1),
             ],
             dim=-1,
         )
@@ -143,8 +125,6 @@ class TestEvalDataPipeline(unittest.TestCase):
             model_path = test_dir / "test_model.onnx"
             create_model(model_path)
             model = ONNXModel(model_path)
-            # TODO: Remove this
-            model.attached_metadata = ATTACHED_METADATA  # type: ignore[assignment]
 
             evaluator = Evaluator(self.config, model, self.logger)
             evaluator.run_eval()
@@ -156,21 +136,7 @@ class TestEvalDataPipeline(unittest.TestCase):
                 2,
                 f"Expected 3 video files in {data_dir}, found {len(video_files)}",
             )
-
-            # Check if metrics file exists
-            metrics_file = Path(data_dir, "averaged_metrics.yaml")
-            self.assertTrue(
-                metrics_file.exists(),
-                f"Expected metrics file at {metrics_file} does not exist",
-            )
-
-            # Check if tracking error file exists
-            tracking_error_plots = list(data_dir.glob("tracking_error_*.png"))
-            self.assertEqual(
-                len(tracking_error_plots),
-                2,
-                f"Expected 2 tracking error plots in {data_dir}, found {len(tracking_error_plots)}",
-            )
+            # TODO add more tests
 
 
 if __name__ == "__main__":

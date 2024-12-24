@@ -6,7 +6,7 @@ eval_suites:
 
 eval_envs:
   krec:
-    dataset_path: "recordings"
+    dataset_path: "data/recordings"
     eval_runs: 1
     seed: 42
     metrics:
