@@ -9,10 +9,9 @@ from kinfer.inference.python import ONNXModel
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from keval import metrics
-from keval.observation import JointPositionsValue, ValueType
+from keval.experimental.krec_dataloader import KRecDataset, get_krec_dataloader
+from keval.observation import JOINT_NAMES, KrecObservation, ValueType
 from keval.runners.base_runner import Runner
-from keval.runners.krec_dataloader import KRecDataset, get_krec_dataloader
-from keval.observation import JOINT_NAMES
 
 
 class KrecRunner(Runner):
@@ -54,18 +53,19 @@ class KrecRunner(Runner):
         batch: dict,
         output: list[float],
     ) -> dict[str, metrics.BaseMetric]:
-        """Update the locomotion metrics.
+        """Update the KRec metrics.
 
         Args:
             local_metrics: The metrics to update.
-            commanded_velocity: The commanded velocity.
+            predicted_position: The predicted position.
+            observed_position: The observed position.
 
         Returns:
             The updated metrics.
         """
         local_metrics[metrics.MetricsType.POSITION_ERROR.name].add_step(
-            observed_position=batch["joint_pos"],
-            commanded_position=output,
+            observed_position=batch[ValueType.JOINT_POSITIONS.value],
+            predicted_position=output,
         )
 
         return local_metrics
@@ -80,14 +80,18 @@ class KrecRunner(Runner):
             The observation for the model.
         """
         schema_batch = []
-        for datapoint in batch["joint_pos"]:
+        for joint_positions, camera_frame_left, camera_frame_right in zip(
+            batch[ValueType.JOINT_POSITIONS.value],
+            batch[ValueType.CAMERA_FRAME_LEFT.value],
+            batch[ValueType.CAMERA_FRAME_RIGHT.value],
+        ):
             joint_positions = P.Value(
                 value_name=ValueType.JOINT_POSITIONS.value,
                 joint_positions=P.JointPositionsValue(
                     values=[
                         P.JointPositionValue(
                             joint_name=name,
-                            value=datapoint[index],
+                            value=joint_positions[index],
                             unit=P.JointPositionUnit.RADIANS,
                         )
                         for index, name in enumerate(JOINT_NAMES)
@@ -95,8 +99,24 @@ class KrecRunner(Runner):
                 ),
             )
 
-            full_observation = JointPositionsValue(
+            camera_frame_left = P.Value(
+                value_name=ValueType.CAMERA_FRAME_LEFT.value,
+                camera_frame=P.CameraFrameValue(
+                    data=camera_frame_left.numpy().tobytes(),
+                ),
+            )
+
+            camera_frame_right = P.Value(
+                value_name=ValueType.CAMERA_FRAME_RIGHT.value,
+                camera_frame=P.CameraFrameValue(
+                    data=camera_frame_right.numpy().tobytes(),
+                ),
+            )
+
+            full_observation = KrecObservation(
                 joint_positions=joint_positions,
+                camera_frame_left=camera_frame_left,
+                camera_frame_right=camera_frame_right,
             )
 
             # Assemble observation space for the model

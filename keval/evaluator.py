@@ -31,12 +31,20 @@ class Evaluator:
         self.logger = logger
         self.embodiment = config.embodiment
         self.global_metrics = Metrics(config, logger)
-        self.runners = {
-            RunnerType.MUJOCO: MujocoRunner(config, model, self.global_metrics),
-            RunnerType.KREC: KrecRunner(config, model, self.global_metrics),
-            RunnerType.MANI_SKILL: ManiSkillRunner(config, model, self.global_metrics),
-        }
         self.model = model
+        self.runners = self._init_runners()
+
+    def _init_runners(self) -> None:
+        """Initializes the runners."""
+        runners = {}
+        if self.config.eval_suites.locomotion:
+            runners[RunnerType.MUJOCO] = MujocoRunner(self.config, self.model, self.global_metrics)
+        if self.config.eval_suites.krec:
+            runners[RunnerType.KREC] = KrecRunner(self.config, self.model, self.global_metrics)
+        if self.config.eval_suites.manipulation_mani_skill:
+            runners[RunnerType.MANI_SKILL] = ManiSkillRunner(self.config, self.model, self.global_metrics)
+
+        return runners
 
     def run_eval(self) -> None:
         """Runs the evaluation."""

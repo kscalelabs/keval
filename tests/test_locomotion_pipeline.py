@@ -171,5 +171,6 @@ class TestEvalLocomotionPipeline(unittest.TestCase):
                 f"Expected 2 tracking error plots in {data_dir}, found {len(tracking_error_plots)}",
             )
 
+
 if __name__ == "__main__":
     unittest.main()

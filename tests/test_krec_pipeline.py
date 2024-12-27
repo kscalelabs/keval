@@ -16,24 +16,18 @@ from kinfer.inference.python import ONNXModel
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from keval.evaluator import Evaluator
-from keval.observation import JOINT_POSITIONS_SCHEMA, INPUT_SCHEMA, OUTPUT_SCHEMA
-from keval.runners.mujoco_runner import ATTACHED_METADATA
+from keval.observation import KREC_INPUT_SCHEMA, OUTPUT_SCHEMA
 
 TEST_MODEL_PATH = Path("test_model.onnx")
-
 
 
 @dataclass
 class ModelConfig:
     joint_positions_length: int = 10
-    # joint_velocities_length: int = 10
-    # vector_command_length: int = 3
-    # imu_length: int = 9
-    # timestamp_length: int = 1
     hidden_size: int = 10
     num_layers: int = 2
-    # camera_frame_left_length: int = 640 * 480 * 3
-    # camera_frame_right_length: int = 640 * 480 * 3
+    camera_frame_left_length: int = 640 * 480 * 3
+    camera_frame_right_length: int = 640 * 480 * 3
 
 
 class SimpleModel(torch.nn.Module):
@@ -44,7 +38,7 @@ class SimpleModel(torch.nn.Module):
         layers = []
 
         total_input_features = (
-            config.joint_positions_length
+            config.joint_positions_length + config.camera_frame_left_length + config.camera_frame_right_length
         )
         in_features = total_input_features
 
@@ -58,10 +52,14 @@ class SimpleModel(torch.nn.Module):
     def forward(
         self,
         joint_positions: torch.Tensor,
+        camera_frame_left: torch.Tensor,
+        camera_frame_right: torch.Tensor,
     ) -> torch.Tensor:
         combined_input = torch.cat(
             [
                 joint_positions,
+                camera_frame_left.reshape(-1),
+                camera_frame_right.reshape(-1),
             ],
             dim=-1,
         )
@@ -86,7 +84,7 @@ def create_model(save_path: Path) -> Path | str:
     exported_model = export_model(
         model=jit_model,
         schema=P.ModelSchema(
-            input_schema=JOINT_POSITIONS_SCHEMA,
+            input_schema=KREC_INPUT_SCHEMA,
             output_schema=OUTPUT_SCHEMA,
         ),
     )
@@ -129,14 +127,22 @@ class TestEvalDataPipeline(unittest.TestCase):
             evaluator = Evaluator(self.config, model, self.logger)
             evaluator.run_eval()
 
-            data_dir = Path(self.config.logging.log_dir, "data")
-            video_files = list(data_dir.glob("*.mp4"))
-            self.assertEqual(
-                len(video_files),
-                2,
-                f"Expected 3 video files in {data_dir}, found {len(video_files)}",
+            data_dir = Path(self.config.logging.log_dir, "krec")
+
+            # Check if metrics file exists
+            metrics_file = Path(data_dir, "averaged_metrics.yaml")
+            self.assertTrue(
+                metrics_file.exists(),
+                f"Expected metrics file at {metrics_file} does not exist",
             )
-            # TODO add more tests
+
+            # Check if tracking error file exists
+            position_error_plots = list(data_dir.glob("position_error_*.png"))
+            self.assertEqual(
+                len(position_error_plots),
+                1,
+                f"Expected 1 position error plots in {data_dir}, found {len(position_error_plots)}",
+            )
 
 
 if __name__ == "__main__":
