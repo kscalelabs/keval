@@ -2,6 +2,7 @@
 
 krec
 kinfer
+krecviz
 mujoco
 omegaconf
 onnxruntime

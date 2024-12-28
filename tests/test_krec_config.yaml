@@ -1,4 +1,4 @@
-model_path: "gpr_walking.onnx"
+model_path: "manipulation.onnx"
 embodiment: "gpr"
 
 eval_suites:

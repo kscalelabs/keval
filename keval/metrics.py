@@ -9,6 +9,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
+from krecviz.visualize import visualize_krec
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from keval.observation import JOINT_NAMES
@@ -186,6 +187,21 @@ class PositionError(BaseMetric):
             index: The index of the rollout.
             save_dir: The directory to save the plot.
         """
+        self.save_static_plot(index, save_dir)
+        visualize_krec(
+            urdf_path="/Users/pfb30/krecviz/data/urdf_examples/gpr/robot.urdf",  # f"{eval_config.resources_dir}/{eval_config.embodiment}/robot.xml",
+            krec_path="/Users/pfb30/krecviz/data/krec_examples/actuator_15_left_arm_elbow_roll_movement.krec",  # f"{eval_config.resources_dir}/{eval_config.embodiment}/robot.krec",
+            # joint_positions=self.predicted_position,
+            output_path=save_dir / f"run_{index}.rrd",
+        )
+
+    def save_static_plot(self, index: int, save_dir: Path) -> None:
+        """Save the position error plot.
+
+        Args:
+            index: The index of the rollout.
+            save_dir: The directory to save the plot.
+        """
         # Create a grid of subplots based on number of joints
         rows = int(np.ceil(np.sqrt(self.num_joints)))
         cols = int(np.ceil(self.num_joints / rows))
@@ -196,6 +212,7 @@ class PositionError(BaseMetric):
         observed = np.asarray(self.observed_position)[:, 0, : self.num_joints]
         predicted = np.asarray(self.predicted_position)[:, : self.num_joints]
         time_steps = np.arange(len(observed))
+
         # Create a subplot for each joint
         for joint_idx in range(self.num_joints):
             ax = axes[joint_idx]
@@ -237,10 +254,6 @@ class ContactForces(BaseMetric):
         """Compile the contact forces metric."""
         pass
 
-    def save_plot(self, index: int, save_dir: Path) -> None:
-        """Save the contact forces plot."""
-        pass
-
 
 class Metrics:
     def __init__(self, config: DictConfig | ListConfig | OmegaConf, logger: logging.Logger) -> None:
@@ -268,7 +281,7 @@ class Metrics:
             save_dir = Path(self.config.logging.log_dir, "krec")
         else:
             raise ValueError("No evaluation suite selected")
-        metrics = [metrics]
+
         aggregated_metrics: dict[str, list[float | np.ndarray]] = {metric_name: [] for metric_name in metrics[0].keys()}
 
         # Collect all metric values across runs
@@ -292,6 +305,3 @@ class Metrics:
             yaml.dump(averaged_metrics, f)
 
         self.logger.info("Averaged metrics: %s", averaged_metrics)
-
-    def plot(self) -> None:
-        pass

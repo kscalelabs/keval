@@ -146,43 +146,14 @@ class KRecDataset(Dataset):
         }
 
     @staticmethod
-    def get_krec_file_type(file_path: str) -> str:
-        """Determine if the file is a direct KREC file or MKV-embedded KREC.
-
-        Returns:
-            'krec' for .krec files
-            'mkv' for .krec.mkv files
-        """
-        if file_path.endswith(".krec"):
-            return "krec"
-        elif file_path.endswith(".krec.mkv"):
-            return "mkv"
-        else:
-            error_msg = f"Invalid file extension. Expected '.krec' or '.krec.mkv', got: {file_path}"
-            raise RuntimeError(error_msg)
-
-    @staticmethod
-    def load_krec_direct(krec_file_path: str) -> krec.KRec:
-        """Load a KREC file directly."""
-        return krec.KRec.load(krec_file_path)
-
-    @staticmethod
-    def load_krec_from_mkv(mkv_file_path: str, verbose: bool) -> krec.KRec:
-        """Load a KREC file from an MKV file into a manually created temp directory."""
-        if not os.path.exists(mkv_file_path):
-            raise FileNotFoundError(f"File not found: {mkv_file_path}")
-
-        return krec.extract_from_video(mkv_file_path, verbose=verbose)
-
-    @staticmethod
     def load_krec(file_path: str, verbose: bool = True) -> krec.KRec:
         """Smart loader that handles both direct KREC and MKV-embedded KREC files."""
-        file_type = KRecDataset.get_krec_file_type(file_path)
-        return (
-            KRecDataset.load_krec_direct(file_path)
-            if file_type == "krec"
-            else KRecDataset.load_krec_from_mkv(file_path, verbose)
-        )
+        if file_path.endswith(".krec"):
+            return krec.KRec.load(file_path)
+        elif file_path.endswith(".krec.mkv"):
+            return krec.extract_from_video(file_path, verbose=verbose)
+        else:
+            raise ValueError(f"Invalid file extension. Expected '.krec' or '.krec.mkv', got: {file_path}")
 
 
 def get_krec_dataloader(

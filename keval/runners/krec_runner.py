@@ -135,6 +135,11 @@ class KrecRunner(Runner):
             return schema_batch
 
     def run(self) -> list[dict[str, metrics.BaseMetric]]:
+        """Run the KRec runner.
+
+        Returns:
+            metrics
+        """
         local_metrics = self._init_krec_metrics()
 
         for batch in self.dataloader:
@@ -143,4 +148,4 @@ class KrecRunner(Runner):
             output = self.model._output_serializer.serialize_io(output_io, as_dict=True)["joint_torques"]
             local_metrics = self.update_krec_metrics(local_metrics, batch, output)
 
-        return local_metrics
+        return [local_metrics]

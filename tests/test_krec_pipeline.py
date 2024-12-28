@@ -136,12 +136,20 @@ class TestEvalDataPipeline(unittest.TestCase):
                 f"Expected metrics file at {metrics_file} does not exist",
             )
 
-            # Check if tracking error file exists
+            # Check if tracking error plots exist
             position_error_plots = list(data_dir.glob("position_error_*.png"))
             self.assertEqual(
                 len(position_error_plots),
                 1,
-                f"Expected 1 position error plots in {data_dir}, found {len(position_error_plots)}",
+                f"Expected 1 position error plot in {data_dir}, found {len(position_error_plots)}",
+            )
+
+            # Check if rerun data exists
+            rerun_data = list(data_dir.glob("*.rrd"))
+            self.assertEqual(
+                len(rerun_data),
+                1,
+                f"Expected 1 .rrd file in {data_dir}, found {len(rerun_data)}",
             )
 
 
