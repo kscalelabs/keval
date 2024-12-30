@@ -8,6 +8,7 @@ from kinfer.inference.python import ONNXModel
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from keval.metrics import Metrics
+from keval.runners.base_runner import Runner
 from keval.runners.krec_runner import KrecRunner
 from keval.runners.mani_skill_runner import ManiSkillRunner
 from keval.runners.mujoco_runner import MujocoRunner
@@ -35,9 +36,9 @@ class Evaluator:
         self.model = model
         self.runners = self._init_runners()
 
-    def _init_runners(self) -> None:
+    def _init_runners(self) -> dict[RunnerType, Runner]:
         """Initializes the runners."""
-        runners = {}
+        runners: dict[RunnerType, Runner] = {}
         if self.config.eval_suites.locomotion:
             runners[RunnerType.MUJOCO] = MujocoRunner(self.config, self.model, self.global_metrics)
             Path(self.config.logging.log_dir, RunnerType.MUJOCO.value).mkdir(parents=True, exist_ok=True)

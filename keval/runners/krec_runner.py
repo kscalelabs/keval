@@ -4,6 +4,7 @@ TODO:
 1. Add batch handling in the onnx definition.
 """
 
+import numpy as np
 from kinfer import proto as P
 from kinfer.inference.python import ONNXModel
 from omegaconf import DictConfig, ListConfig, OmegaConf
@@ -42,7 +43,7 @@ class KrecRunner(Runner):
         Returns:
             A dictionary of metrics.
         """
-        local_metrics = {
+        local_metrics: dict[str, metrics.BaseMetric] = {
             metrics.MetricsType.POSITION_ERROR.name: metrics.PositionError(),
         }
         return local_metrics
@@ -51,14 +52,14 @@ class KrecRunner(Runner):
         self,
         local_metrics: dict[str, metrics.BaseMetric],
         batch: dict,
-        output: list[float],
+        output: np.ndarray,
     ) -> dict[str, metrics.BaseMetric]:
         """Update the KRec metrics.
 
         Args:
             local_metrics: The metrics to update.
-            predicted_position: The predicted position.
-            observed_position: The observed position.
+            batch: The batch of data.
+            output: The output of the model.
 
         Returns:
             The updated metrics.
@@ -70,16 +71,15 @@ class KrecRunner(Runner):
 
         return local_metrics
 
-    def create_observation(self, batch) -> P.IO:
+    def create_observation(self, batch: dict) -> P.IO:
         """Create the observation for the model.
 
         Args:
-            simulation_time: The simulation time.
+            batch: The batch of data.
 
         Returns:
             The observation for the model.
         """
-        schema_batch = []
         for joint_positions, camera_frame_left, camera_frame_right in zip(
             batch[ValueType.JOINT_POSITIONS.value],
             batch[ValueType.CAMERA_FRAME_LEFT.value],
@@ -127,12 +127,7 @@ class KrecRunner(Runner):
                 except AttributeError:
                     raise AttributeError(f"Attribute {key} not found in FullObservation")
 
-            schema_batch.append(inputs)
-
-        if len(schema_batch) == 1:
-            return schema_batch[0]
-        else:
-            return schema_batch
+        return inputs
 
     def run(self) -> list[dict[str, metrics.BaseMetric]]:
         """Run the KRec runner.
