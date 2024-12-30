@@ -7,7 +7,7 @@ eval_suites:
 eval_envs:
   locomotion:
     seed: 42
-    eval_runs: 3
+    eval_runs: 2
     sim_duration: .2
     record_video: true
 

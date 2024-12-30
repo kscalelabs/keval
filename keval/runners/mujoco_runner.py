@@ -1,5 +1,6 @@
 """Mujoco runner."""
 
+from enum import Enum
 from pathlib import Path
 
 import mediapy as media
@@ -23,6 +24,12 @@ ATTACHED_METADATA = {
     "sim_decimation": 1,
     "tau_factor": 1.0,
 }
+
+
+class LocomotionTasks(Enum):
+    STANDING = "STANDING"
+    CONSTANT_COMMAND = "CONSTANT_COMMAND"
+    RANDOM_COMMAND = "RANDOM_COMMAND"
 
 
 class MujocoRunner(Runner):
@@ -73,6 +80,7 @@ class MujocoRunner(Runner):
 
     def _init_locomotion_metrics(
         self,
+        task: LocomotionTasks,
     ) -> dict[str, metrics.BaseMetric]:
         """Initialize the metrics for the locomotion suite.
 
@@ -80,10 +88,13 @@ class MujocoRunner(Runner):
             A dictionary of metrics.
         """
         local_metrics = {
-            metrics.MetricsType.EPISODE_DURATION.name: metrics.EpisodeDuration(
-                int(self.eval_config.sim_duration / self.model_info["sim_dt"])
+            metrics.MetricsType.EPISODE_DURATION.name + "_" + task.value: metrics.EpisodeDuration(
+                name=metrics.MetricsType.EPISODE_DURATION.name + "_" + task.value,
+                expected_length=int(self.eval_config.sim_duration / self.model_info["sim_dt"]),
             ),
-            metrics.MetricsType.TRACKING_ERROR.name: metrics.TrackingError(),
+            metrics.MetricsType.TRACKING_ERROR.name + "_" + task.value: metrics.TrackingError(
+                name=metrics.MetricsType.TRACKING_ERROR.name + "_" + task.value
+            ),
             # metrics.MetricsType.POSITION_ERROR.name: metrics.PositionError(),
             # metrics.MetricsType.CONTACT_FORCES.name: metrics.ContactForces(),
         }
@@ -92,7 +103,7 @@ class MujocoRunner(Runner):
     def update_locomotion_metrics(
         self,
         local_metrics: dict[str, metrics.BaseMetric],
-        commanded_velocity: list[float],
+        task: LocomotionTasks,
     ) -> dict[str, metrics.BaseMetric]:
         """Update the locomotion metrics.
 
@@ -103,14 +114,14 @@ class MujocoRunner(Runner):
         Returns:
             The updated metrics.
         """
-        local_metrics[metrics.MetricsType.EPISODE_DURATION.name].add_step()
-        local_metrics[metrics.MetricsType.TRACKING_ERROR.name].add_step(
+        local_metrics[metrics.MetricsType.EPISODE_DURATION.name + "_" + task.value].add_step()
+        local_metrics[metrics.MetricsType.TRACKING_ERROR.name + "_" + task.value].add_step(
             observed_velocity=[
                 self.mj_data.qvel[0],
                 self.mj_data.qvel[1],
                 self.mj_data.sensor("angular-velocity").data[2],
             ],
-            commanded_velocity=commanded_velocity,
+            commanded_velocity=[self.x_vel_cmd, self.y_vel_cmd, self.yaw_vel_cmd],
         )
 
         return local_metrics
@@ -224,7 +235,26 @@ class MujocoRunner(Runner):
 
         return inputs
 
-    def run_one_rollout(self, index: int) -> dict[str, metrics.BaseMetric]:
+    def task_setup(self, task: LocomotionTasks, simulation_step: int) -> None:
+        if task == LocomotionTasks.STANDING:
+            self.x_vel_cmd = 0.0
+            self.y_vel_cmd = 0.0
+            self.yaw_vel_cmd = 0.0
+        elif task == LocomotionTasks.CONSTANT_COMMAND:
+            self.x_vel_cmd = 0.4
+            self.y_vel_cmd = 0.0
+            self.yaw_vel_cmd = 0.0
+        elif task == LocomotionTasks.RANDOM_COMMAND:
+            if simulation_step % 500 == 0:
+                self.x_vel_cmd = np.random.uniform(-0.2, 0.5)
+                self.y_vel_cmd = np.random.uniform(-0.3, 0.3)
+                self.yaw_vel_cmd = np.random.uniform(-0.3, 0.3)
+
+    def run_one_rollout(
+        self,
+        index: int,
+        task: LocomotionTasks,
+    ) -> dict[str, metrics.BaseMetric]:
         """Runs one rollout.
 
         Args:
@@ -233,10 +263,10 @@ class MujocoRunner(Runner):
         Returns:
             The metrics for the rollout.
         """
-        local_metrics = self._init_locomotion_metrics()
-        commanded_velocity = [self.x_vel_cmd, self.y_vel_cmd, self.yaw_vel_cmd]
+        local_metrics = self._init_locomotion_metrics(task)
 
         for simulation_step in range(int(self.eval_config.sim_duration / self.model_info["sim_dt"])):
+            self.task_setup(task, simulation_step)
             if simulation_step % self.model_info["sim_decimation"] == 0:
                 observation = self.create_observation(simulation_step * self.model_info["sim_dt"])
                 torques_io = self.model(observation)
@@ -250,7 +280,10 @@ class MujocoRunner(Runner):
             self.mj_data.ctrl = torques
             mujoco.mj_step(self.mj_model, self.mj_data)
 
-            local_metrics = self.update_locomotion_metrics(local_metrics, commanded_velocity)
+            local_metrics = self.update_locomotion_metrics(
+                local_metrics,
+                task=task,
+            )
 
         if self.record_video:
             video_path = Path(
@@ -273,8 +306,9 @@ class MujocoRunner(Runner):
             The global metrics for the rollouts.
         """
         all_metrics = []
-        for index in range(self.eval_config.eval_runs):
-            local_metrics = self.run_one_rollout(index)
-            all_metrics.append(local_metrics)
+        for task in LocomotionTasks:
+            for index in range(self.eval_config.eval_runs):
+                local_metrics = self.run_one_rollout(index, task)
+                all_metrics.append(local_metrics)
 
         return all_metrics
