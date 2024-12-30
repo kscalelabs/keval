@@ -9,7 +9,6 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
-from krecviz.visualize import visualize_krec
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from keval.observation import JOINT_NAMES
@@ -188,12 +187,7 @@ class PositionError(BaseMetric):
             save_dir: The directory to save the plot.
         """
         self.save_static_plot(index, save_dir)
-        visualize_krec(
-            urdf_path="/Users/pfb30/krecviz/data/urdf_examples/gpr/robot.urdf",  # f"{eval_config.resources_dir}/{eval_config.embodiment}/robot.xml",
-            krec_path="/Users/pfb30/krecviz/data/krec_examples/actuator_15_left_arm_elbow_roll_movement.krec",  # f"{eval_config.resources_dir}/{eval_config.embodiment}/robot.krec",
-            # joint_positions=self.predicted_position,
-            output_path=save_dir / f"run_{index}.rrd",
-        )
+        # TODO: Add KRecviz visualization with rerun
 
     def save_static_plot(self, index: int, save_dir: Path) -> None:
         """Save the position error plot.

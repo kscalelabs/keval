@@ -2,6 +2,7 @@
 
 import logging
 from enum import Enum
+from pathlib import Path
 
 from kinfer.inference.python import ONNXModel
 from omegaconf import DictConfig, ListConfig, OmegaConf
@@ -39,11 +40,13 @@ class Evaluator:
         runners = {}
         if self.config.eval_suites.locomotion:
             runners[RunnerType.MUJOCO] = MujocoRunner(self.config, self.model, self.global_metrics)
+            Path(self.config.logging.log_dir, RunnerType.MUJOCO.value).mkdir(parents=True, exist_ok=True)
         if self.config.eval_suites.krec:
             runners[RunnerType.KREC] = KrecRunner(self.config, self.model, self.global_metrics)
+            Path(self.config.logging.log_dir, RunnerType.KREC.value).mkdir(parents=True, exist_ok=True)
         if self.config.eval_suites.manipulation_mani_skill:
             runners[RunnerType.MANI_SKILL] = ManiSkillRunner(self.config, self.model, self.global_metrics)
-
+            Path(self.config.logging.log_dir, RunnerType.MANI_SKILL.value).mkdir(parents=True, exist_ok=True)
         return runners
 
     def run_eval(self) -> None:

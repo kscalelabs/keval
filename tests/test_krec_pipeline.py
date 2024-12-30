@@ -127,9 +127,8 @@ class TestEvalDataPipeline(unittest.TestCase):
             evaluator = Evaluator(self.config, model, self.logger)
             evaluator.run_eval()
 
-            data_dir = Path(self.config.logging.log_dir, "krec")
-
             # Check if metrics file exists
+            data_dir = Path(self.config.logging.log_dir, "krec")
             metrics_file = Path(data_dir, "averaged_metrics.yaml")
             self.assertTrue(
                 metrics_file.exists(),
@@ -144,13 +143,13 @@ class TestEvalDataPipeline(unittest.TestCase):
                 f"Expected 1 position error plot in {data_dir}, found {len(position_error_plots)}",
             )
 
-            # Check if rerun data exists
-            rerun_data = list(data_dir.glob("*.rrd"))
-            self.assertEqual(
-                len(rerun_data),
-                1,
-                f"Expected 1 .rrd file in {data_dir}, found {len(rerun_data)}",
-            )
+            # # Check if rerun data exists
+            # rerun_data = list(data_dir.glob("*.rrd"))
+            # self.assertEqual(
+            #     len(rerun_data),
+            #     1,
+            #     f"Expected 1 .rrd file in {data_dir}, found {len(rerun_data)}",
+            # )
 
 
 if __name__ == "__main__":
