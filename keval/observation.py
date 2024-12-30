@@ -31,6 +31,20 @@ class ValueType(Enum):
 
 
 @dataclass
+class DefaultCameraSetup:
+    width: int = 640
+    height: int = 480
+    channels: int = 3
+
+
+@dataclass
+class KrecObservation:
+    joint_positions: P.JointPositionsValue
+    camera_frame_left: P.CameraFrameValue
+    camera_frame_right: P.CameraFrameValue
+
+
+@dataclass
 class FullObservation:
     joint_positions: P.JointPositionsValue
     joint_velocities: P.JointVelocitiesValue
@@ -39,6 +53,35 @@ class FullObservation:
     timestamp: P.TimestampValue
     camera_frame_left: P.CameraFrameValue
     camera_frame_right: P.CameraFrameValue
+
+
+KREC_INPUT_SCHEMA = P.IOSchema(
+    values=[
+        P.ValueSchema(
+            value_name=ValueType.JOINT_POSITIONS.value,
+            joint_positions=P.JointPositionsSchema(
+                joint_names=JOINT_NAMES,
+                unit=P.JointPositionUnit.RADIANS,
+            ),
+        ),
+        P.ValueSchema(
+            value_name=ValueType.CAMERA_FRAME_LEFT.value,
+            camera_frame=P.CameraFrameSchema(
+                width=DefaultCameraSetup.width,
+                height=DefaultCameraSetup.height,
+                channels=DefaultCameraSetup.channels,
+            ),
+        ),
+        P.ValueSchema(
+            value_name=ValueType.CAMERA_FRAME_RIGHT.value,
+            camera_frame=P.CameraFrameSchema(
+                width=DefaultCameraSetup.width,
+                height=DefaultCameraSetup.height,
+                channels=DefaultCameraSetup.channels,
+            ),
+        ),
+    ]
+)
 
 
 INPUT_SCHEMA = P.IOSchema(
@@ -89,13 +132,14 @@ INPUT_SCHEMA = P.IOSchema(
         P.ValueSchema(
             value_name=ValueType.CAMERA_FRAME_RIGHT.value,
             camera_frame=P.CameraFrameSchema(
-                width=640,
-                height=480,
-                channels=3,
+                width=DefaultCameraSetup.width,
+                height=DefaultCameraSetup.height,
+                channels=DefaultCameraSetup.channels,
             ),
         ),
     ]
 )
+
 
 OUTPUT_SCHEMA = P.IOSchema(
     values=[

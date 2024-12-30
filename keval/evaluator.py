@@ -2,11 +2,13 @@
 
 import logging
 from enum import Enum
+from pathlib import Path
 
 from kinfer.inference.python import ONNXModel
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from keval.metrics import Metrics
+from keval.runners.base_runner import Runner
 from keval.runners.krec_runner import KrecRunner
 from keval.runners.mani_skill_runner import ManiSkillRunner
 from keval.runners.mujoco_runner import MujocoRunner
@@ -31,12 +33,22 @@ class Evaluator:
         self.logger = logger
         self.embodiment = config.embodiment
         self.global_metrics = Metrics(config, logger)
-        self.runners = {
-            RunnerType.MUJOCO: MujocoRunner(config, model, self.global_metrics),
-            RunnerType.KREC: KrecRunner(config, model, self.global_metrics),
-            RunnerType.MANI_SKILL: ManiSkillRunner(config, model, self.global_metrics),
-        }
         self.model = model
+        self.runners = self._init_runners()
+
+    def _init_runners(self) -> dict[RunnerType, Runner]:
+        """Initializes the runners."""
+        runners: dict[RunnerType, Runner] = {}
+        if self.config.eval_suites.locomotion:
+            runners[RunnerType.MUJOCO] = MujocoRunner(self.config, self.model, self.global_metrics)
+            Path(self.config.logging.log_dir, RunnerType.MUJOCO.value).mkdir(parents=True, exist_ok=True)
+        if self.config.eval_suites.krec:
+            runners[RunnerType.KREC] = KrecRunner(self.config, self.model, self.global_metrics)
+            Path(self.config.logging.log_dir, RunnerType.KREC.value).mkdir(parents=True, exist_ok=True)
+        if self.config.eval_suites.manipulation_mani_skill:
+            runners[RunnerType.MANI_SKILL] = ManiSkillRunner(self.config, self.model, self.global_metrics)
+            Path(self.config.logging.log_dir, RunnerType.MANI_SKILL.value).mkdir(parents=True, exist_ok=True)
+        return runners
 
     def run_eval(self) -> None:
         """Runs the evaluation."""
@@ -47,7 +59,7 @@ class Evaluator:
 
         if self.config.eval_suites.krec:
             self.logger.info("Running krec evaluation")
-            pass
+            self.global_metrics.compile(self.runners[RunnerType.KREC].run())
 
         if self.config.eval_suites.manipulation_mani_skill:
             self.logger.info("Running manipulation skill evaluation")

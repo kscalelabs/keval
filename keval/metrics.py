@@ -11,6 +11,8 @@ import numpy as np
 import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
+from keval.observation import JOINT_NAMES
+
 
 class MetricsType(Enum):
     EPISODE_DURATION = "EPISODE_DURATION"
@@ -31,22 +33,46 @@ class BaseMetric(ABC):
 
     @abstractmethod
     def add_step(self, *args: Any, **kwargs: Any) -> None:
-        """Process data to compute the metric."""
+        """Process data to compute the metric.
+
+        Args:
+            *args: The arguments to pass to the metric.
+            **kwargs: The keyword arguments to pass to the metric.
+        """
         raise NotImplementedError("Each metric must implement the add_step method.")
 
     @abstractmethod
     def compile(self, *args: Any, **kwargs: Any) -> np.ndarray | float | int | None:
-        """Compile the metric."""
+        """Compile the metric.
+
+        Args:
+            *args: The arguments to pass to the metric.
+            **kwargs: The keyword arguments to pass to the metric.
+
+        Returns:
+            The compiled metric.
+        """
         raise NotImplementedError("Each metric must implement the compile method.")
 
 
 class TrackingError(BaseMetric):
     def __init__(self) -> None:
+        """Initialize the tracking error metric.
+
+        Args:
+            name: The name of the metric.
+        """
         super().__init__(name=MetricsType.TRACKING_ERROR)
         self.commanded_velocity: list[np.ndarray] = []
         self.observed_velocity: list[np.ndarray] = []
 
     def add_step(self, observed_velocity: np.ndarray, commanded_velocity: np.ndarray) -> None:
+        """Add a step to the tracking error metric.
+
+        Args:
+            observed_velocity: The observed velocity.
+            commanded_velocity: The commanded velocity.
+        """
         self.observed_velocity.append(observed_velocity)
         self.commanded_velocity.append(commanded_velocity)
 
@@ -59,7 +85,12 @@ class TrackingError(BaseMetric):
         return error_per_component
 
     def save_plot(self, index: int, save_dir: Path) -> None:
-        """Plot tracking error for x, y, and angular velocity components."""
+        """Plot tracking error for x, y, and angular velocity components.
+
+        Args:
+            index: The index of the rollout.
+            save_dir: The directory to save the plot.
+        """
         _, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
 
         # Convert lists to numpy arrays for easier indexing
@@ -98,11 +129,17 @@ class TrackingError(BaseMetric):
 
 class EpisodeDuration(BaseMetric):
     def __init__(self, expected_length: int) -> None:
+        """Initialize the episode duration metric.
+
+        Args:
+            expected_length: The expected length of the episode.
+        """
         super().__init__(name=MetricsType.EPISODE_DURATION)
         self.expected_length = expected_length
         self.step_count = 0
 
     def add_step(self) -> None:
+        """Add a step to the episode duration metric."""
         self.step_count += 1
 
     def compile(self) -> float:
@@ -113,51 +150,131 @@ class EpisodeDuration(BaseMetric):
 
 class PositionError(BaseMetric):
     def __init__(self) -> None:
-        super().__init__(name=MetricsType.POSITION_ERROR)
-        self.commanded_position: list[np.ndarray] = []
-        self.observed_position: list[np.ndarray] = []
+        """Initialize the position error metric.
 
-    def add_step(self, commanded_position: np.ndarray, observed_position: np.ndarray) -> None:
-        self.commanded_position.append(commanded_position)
+        Args:
+            name: The name of the metric.
+        """
+        super().__init__(name=MetricsType.POSITION_ERROR)
+        self.predicted_position: list[np.ndarray] = []
+        self.observed_position: list[np.ndarray] = []
+        self.num_joints = len(JOINT_NAMES)
+
+    def add_step(self, predicted_position: np.ndarray, observed_position: np.ndarray) -> None:
+        """Add a step to the position error metric.
+
+        Args:
+            predicted_position: The predicted position.
+            observed_position: The observed position.
+        """
+        self.predicted_position.append(predicted_position)
         self.observed_position.append(observed_position)
 
     def compile(self) -> None:
         """Average position error over all steps."""
-        average_error = np.mean(np.asarray(self.observed_position) - np.asarray(self.commanded_position))
+        average_error = np.mean(
+            np.asarray(self.observed_position)[:, :, : self.num_joints]
+            - np.asarray(self.predicted_position)[:, : self.num_joints]
+        )
 
         return average_error
 
     def save_plot(self, index: int, save_dir: Path) -> None:
-        plt.plot(self.commanded_position, self.observed_position, "o")
+        """Save the position error plot.
+
+        Args:
+            index: The index of the rollout.
+            save_dir: The directory to save the plot.
+        """
+        self.save_static_plot(index, save_dir)
+        # TODO: Add KRecviz visualization with rerun
+
+    def save_static_plot(self, index: int, save_dir: Path) -> None:
+        """Save the position error plot.
+
+        Args:
+            index: The index of the rollout.
+            save_dir: The directory to save the plot.
+        """
+        # Create a grid of subplots based on number of joints
+        rows = int(np.ceil(np.sqrt(self.num_joints)))
+        cols = int(np.ceil(self.num_joints / rows))
+        fig, axes = plt.subplots(rows, cols, figsize=(5 * cols, 5 * rows))
+        axes = axes.flatten()  # Flatten to make indexing easier
+
+        # Convert data to numpy arrays for easier handling
+        observed = np.asarray(self.observed_position)[:, 0, : self.num_joints]
+        predicted = np.asarray(self.predicted_position)[:, : self.num_joints]
+        time_steps = np.arange(len(observed))
+
+        # Create a subplot for each joint
+        for joint_idx in range(self.num_joints):
+            ax = axes[joint_idx]
+            ax.plot(time_steps, predicted[:, joint_idx], label="Predicted", linestyle="-")
+            ax.plot(time_steps, observed[:, joint_idx], label="Observed", linestyle="--")
+            ax.set_title(f"Joint {joint_idx + 1}")
+            ax.set_xlabel("Time Step")
+            ax.set_ylabel("Position")
+            ax.legend()
+
+        # Remove any empty subplots
+        for idx in range(self.num_joints, len(axes)):
+            fig.delaxes(axes[idx])
+
+        plt.tight_layout()
         plt.savefig(save_dir / f"position_error_{index}.png")
         plt.close()
 
 
 class ContactForces(BaseMetric):
     def __init__(self) -> None:
+        """Initialize the contact forces metric.
+
+        Args:
+            name: The name of the metric.
+        """
         super().__init__(name=MetricsType.CONTACT_FORCES)
         self.contact_forces: list[list[float]] = []
 
     def add_step(self, contact_forces: list[float]) -> None:
+        """Add a step to the contact forces metric.
+
+        Args:
+            contact_forces: The contact forces to add.
+        """
         self.contact_forces.append(contact_forces)
 
     def compile(self) -> None:
-        pass
-
-    def save_plot(self, index: int, save_dir: Path) -> None:
+        """Compile the contact forces metric."""
         pass
 
 
 class Metrics:
     def __init__(self, config: DictConfig | ListConfig | OmegaConf, logger: logging.Logger) -> None:
+        """Initialize the metrics class.
+
+        Args:
+            config: The configuration.
+            logger: The logger.
+        """
         self.config = config
         self.logger = logger
 
     def compile(self, metrics: list[dict[str, BaseMetric]] | list[list[BaseMetric]]) -> None:
-        assert self.config.eval_envs.locomotion.eval_runs == len(
-            metrics
-        ), "Number of metrics does not match number of runs"
-        save_dir = Path(self.config.logging.log_dir, "locomotion")
+        """Compile the metrics.
+
+        Args:
+            metrics: The metrics to compile.
+        """
+        if self.config.eval_suites.locomotion:
+            assert self.config.eval_envs.locomotion.eval_runs == len(
+                metrics
+            ), "Number of metrics does not match number of runs"
+            save_dir = Path(self.config.logging.log_dir, "locomotion")
+        elif self.config.eval_suites.krec:
+            save_dir = Path(self.config.logging.log_dir, "krec")
+        else:
+            raise ValueError("No evaluation suite selected")
 
         aggregated_metrics: dict[str, list[float | np.ndarray]] = {metric_name: [] for metric_name in metrics[0].keys()}
 
@@ -165,7 +282,7 @@ class Metrics:
         for index, metrics_run in enumerate(metrics):
             for metric_name, metric in metrics_run.items():
                 value = metric.compile()
-                if value is not None:  # Only add non-None values
+                if value is not None:
                     aggregated_metrics[metric_name].append(value)
                 if hasattr(metric, "save_plot"):
                     metric.save_plot(index, save_dir)
@@ -182,6 +299,3 @@ class Metrics:
             yaml.dump(averaged_metrics, f)
 
         self.logger.info("Averaged metrics: %s", averaged_metrics)
-
-    def plot(self) -> None:
-        pass

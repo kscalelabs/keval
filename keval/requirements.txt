@@ -2,10 +2,12 @@
 
 krec
 kinfer
+krecviz
 mujoco
 omegaconf
 onnxruntime
-torch
+torch>=2.5.1
+torchcodec
 mujoco-python-viewer
 scipy
 mediapy
