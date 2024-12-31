@@ -32,6 +32,8 @@ namespace_packages = false
 
 disable_error_code = ["attr-defined", "union-attr"]
 
+exclude = ["keval/experimental"]
+
 [[tool.mypy.overrides]]
 
 module = [
@@ -54,7 +56,7 @@ profile = "black"
 [tool.ruff]
 
 line-length = 120
-target-version = "py312"
+target-version = "py311"
 
 [tool.ruff.lint]
 

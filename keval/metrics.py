@@ -23,13 +23,13 @@ class MetricsType(Enum):
 
 
 class BaseMetric(ABC):
-    def __init__(self, name: str | MetricsType) -> None:
+    def __init__(self, name: str | MetricsType | None = None) -> None:
         """Basic metric class.
 
         Args:
             name: The name of the metric.
         """
-        self.name = name
+        self.name = name or self.__class__.__name__
 
     @abstractmethod
     def add_step(self, *args: Any, **kwargs: Any) -> None:
@@ -56,13 +56,13 @@ class BaseMetric(ABC):
 
 
 class TrackingError(BaseMetric):
-    def __init__(self) -> None:
+    def __init__(self, name: str | MetricsType | None = None) -> None:
         """Initialize the tracking error metric.
 
         Args:
             name: The name of the metric.
         """
-        super().__init__(name=MetricsType.TRACKING_ERROR)
+        super().__init__(name=name or MetricsType.TRACKING_ERROR)
         self.commanded_velocity: list[np.ndarray] = []
         self.observed_velocity: list[np.ndarray] = []
 
@@ -123,18 +123,19 @@ class TrackingError(BaseMetric):
         ax3.legend()
 
         plt.tight_layout()
-        plt.savefig(save_dir / f"tracking_error_{index}.png")
+        plt.savefig(save_dir / f"{self.name.lower()}_{index}.png")
         plt.close()
 
 
 class EpisodeDuration(BaseMetric):
-    def __init__(self, expected_length: int) -> None:
+    def __init__(self, expected_length: int, name: str | MetricsType | None = None) -> None:
         """Initialize the episode duration metric.
 
         Args:
             expected_length: The expected length of the episode.
+            name: The name of the metric.
         """
-        super().__init__(name=MetricsType.EPISODE_DURATION)
+        super().__init__(name=name or MetricsType.EPISODE_DURATION)
         self.expected_length = expected_length
         self.step_count = 0
 
@@ -149,13 +150,13 @@ class EpisodeDuration(BaseMetric):
 
 
 class PositionError(BaseMetric):
-    def __init__(self) -> None:
+    def __init__(self, name: str | MetricsType | None = None) -> None:
         """Initialize the position error metric.
 
         Args:
             name: The name of the metric.
         """
-        super().__init__(name=MetricsType.POSITION_ERROR)
+        super().__init__(name=name or MetricsType.POSITION_ERROR)
         self.predicted_position: list[np.ndarray] = []
         self.observed_position: list[np.ndarray] = []
         self.num_joints = len(JOINT_NAMES)
@@ -222,18 +223,18 @@ class PositionError(BaseMetric):
             fig.delaxes(axes[idx])
 
         plt.tight_layout()
-        plt.savefig(save_dir / f"position_error_{index}.png")
+        plt.savefig(save_dir / f"{self.name.lower()}_{index}.png")
         plt.close()
 
 
 class ContactForces(BaseMetric):
-    def __init__(self) -> None:
+    def __init__(self, name: str | MetricsType | None = None) -> None:
         """Initialize the contact forces metric.
 
         Args:
             name: The name of the metric.
         """
-        super().__init__(name=MetricsType.CONTACT_FORCES)
+        super().__init__(name=name or MetricsType.CONTACT_FORCES)
         self.contact_forces: list[list[float]] = []
 
     def add_step(self, contact_forces: list[float]) -> None:
@@ -267,16 +268,14 @@ class Metrics:
             metrics: The metrics to compile.
         """
         if self.config.eval_suites.locomotion:
-            assert self.config.eval_envs.locomotion.eval_runs == len(
-                metrics
-            ), "Number of metrics does not match number of runs"
             save_dir = Path(self.config.logging.log_dir, "locomotion")
         elif self.config.eval_suites.krec:
             save_dir = Path(self.config.logging.log_dir, "krec")
         else:
             raise ValueError("No evaluation suite selected")
 
-        aggregated_metrics: dict[str, list[float | np.ndarray]] = {metric_name: [] for metric_name in metrics[0].keys()}
+        all_metric_keys = set([metric_name for metrics_name in metrics for metric_name in metrics_name.keys()])
+        aggregated_metrics: dict[str, list[float | np.ndarray]] = {metric_name: [] for metric_name in all_metric_keys}
 
         # Collect all metric values across runs
         for index, metrics_run in enumerate(metrics):
