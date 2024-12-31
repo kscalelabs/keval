@@ -51,13 +51,11 @@ py-files := $(shell find . -name '*.py')
 
 format:
 	@isort --profile black .
-	@black .
 	@ruff format .
 .PHONY: format
 
 static-checks:
 	@isort --profile black --check --diff  .
-	@black --diff --check .
 	@ruff check .
 	@mypy --install-types --non-interactive .
 .PHONY: lint

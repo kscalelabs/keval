@@ -23,7 +23,7 @@ class MetricsType(Enum):
 
 
 class BaseMetric(ABC):
-    def __init__(self, name: str | MetricsType = None) -> None:
+    def __init__(self, name: str | MetricsType | None = None) -> None:
         """Basic metric class.
 
         Args:
@@ -56,7 +56,7 @@ class BaseMetric(ABC):
 
 
 class TrackingError(BaseMetric):
-    def __init__(self, name: str | MetricsType = None) -> None:
+    def __init__(self, name: str | MetricsType | None = None) -> None:
         """Initialize the tracking error metric.
 
         Args:
@@ -128,11 +128,12 @@ class TrackingError(BaseMetric):
 
 
 class EpisodeDuration(BaseMetric):
-    def __init__(self, expected_length: int, name: str | MetricsType = None) -> None:
+    def __init__(self, expected_length: int, name: str | MetricsType | None = None) -> None:
         """Initialize the episode duration metric.
 
         Args:
             expected_length: The expected length of the episode.
+            name: The name of the metric.
         """
         super().__init__(name=name or MetricsType.EPISODE_DURATION)
         self.expected_length = expected_length
@@ -149,7 +150,7 @@ class EpisodeDuration(BaseMetric):
 
 
 class PositionError(BaseMetric):
-    def __init__(self, name: str | MetricsType = None) -> None:
+    def __init__(self, name: str | MetricsType | None = None) -> None:
         """Initialize the position error metric.
 
         Args:
@@ -227,7 +228,7 @@ class PositionError(BaseMetric):
 
 
 class ContactForces(BaseMetric):
-    def __init__(self, name: str | MetricsType = None) -> None:
+    def __init__(self, name: str | MetricsType | None = None) -> None:
         """Initialize the contact forces metric.
 
         Args:
@@ -279,15 +280,11 @@ class Metrics:
         # Collect all metric values across runs
         for index, metrics_run in enumerate(metrics):
             for metric_name, metric in metrics_run.items():
-                try:
-                    value = metric.compile()
-
-                    if value is not None:
-                        aggregated_metrics[metric_name].append(value)
-                    if hasattr(metric, "save_plot"):
-                        metric.save_plot(index, save_dir)
-                except Exception as e:
-                    self.logger.error(f"Error compiling metric {metric_name}: {e}")
+                value = metric.compile()
+                if value is not None:
+                    aggregated_metrics[metric_name].append(value)
+                if hasattr(metric, "save_plot"):
+                    metric.save_plot(index, save_dir)
 
         averaged_metrics: dict[str, float | np.ndarray] = {}
         for metric_name, values in aggregated_metrics.items():

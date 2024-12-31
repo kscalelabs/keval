@@ -153,7 +153,7 @@ class TestEvalLocomotionPipeline(unittest.TestCase):
             self.assertEqual(
                 len(video_files),
                 2,
-                f"Expected 3 video files in {data_dir}, found {len(video_files)}",
+                f"Expected 2 video files in {data_dir}, found {len(video_files)}",
             )
 
             # Check if metrics file exists
@@ -167,8 +167,8 @@ class TestEvalLocomotionPipeline(unittest.TestCase):
             tracking_error_plots = list(data_dir.glob("tracking_error_*.png"))
             self.assertEqual(
                 len(tracking_error_plots),
-                2,
-                f"Expected 2 tracking error plots in {data_dir}, found {len(tracking_error_plots)}",
+                6,
+                f"Expected 6 tracking error plots in {data_dir}, found {len(tracking_error_plots)}",
             )
 
 

@@ -109,7 +109,7 @@ class MujocoRunner(Runner):
 
         Args:
             local_metrics: The metrics to update.
-            commanded_velocity: The commanded velocity.
+            task: The task to update the metrics for.
 
         Returns:
             The updated metrics.
@@ -259,6 +259,7 @@ class MujocoRunner(Runner):
 
         Args:
             index: The index of the rollout.
+            task: The task to update the metrics for.
 
         Returns:
             The metrics for the rollout.
