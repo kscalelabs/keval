@@ -27,3 +27,6 @@ out*/
 logs/
 data/
 test_model.onnx
+
+# Dev
+ref/

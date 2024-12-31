@@ -41,3 +41,69 @@ eval_envs:
 logging:
   log_dir: "logs"
   save_video: true
+
+robot:
+  joints:
+    - "L_hip_y"
+    - "L_hip_z"
+    - "L_hip_x"
+    - "L_knee"
+    - "L_ankle_y"
+    - "R_hip_y"
+    - "R_hip_z"
+    - "R_hip_x"
+    - "R_knee"
+    - "R_ankle_y"
+
+io_schema:
+  input:
+    - value_name: "joint_positions"
+      type: "joint_positions"
+      schema:
+        joint_names: ${robot.joints}
+        unit: "radians"
+    
+    - value_name: "joint_velocities"
+      type: "joint_velocities" 
+      schema:
+        joint_names: ${robot.joints}
+        unit: "radians_per_second"
+    
+    - value_name: "vector_command"
+      type: "vector_command"
+      schema:
+        dimensions: 3
+    
+    - value_name: "imu"
+      type: "imu"
+      schema:
+        use_accelerometer: true
+        use_gyroscope: true
+        use_magnetometer: true
+    
+    - value_name: "timestamp"
+      type: "timestamp"
+      schema:
+        start_seconds: 0
+        start_nanos: 0
+    
+    - value_name: "camera_frame_left"
+      type: "camera_frame"
+      schema:
+        width: 640
+        height: 480
+        channels: 3
+    
+    - value_name: "camera_frame_right"
+      type: "camera_frame"
+      schema:
+        width: 640
+        height: 480
+        channels: 3
+
+  output:
+    - value_name: "joint_torques"
+      type: "joint_torques"
+      schema:
+        joint_names: ${robot.joints}
+        unit: "newton_meters"

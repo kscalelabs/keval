@@ -12,7 +12,8 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from torchcodec.decoders import VideoDecoder
 
-from keval.observation import DefaultCameraSetup, ValueType
+from keval.observation import ValueType
+from keval.schema import SchemaConverter
 
 TEMP_JOINT_MAPPING = {
     11: 0,
@@ -38,6 +39,9 @@ class KRecDataset(Dataset):
         image_history_size: int = 2,
         device: str = "cpu",
         has_video: bool = False,
+        camera_width: int = 640,
+        camera_height: int = 480,
+        camera_channels: int = 3,
     ) -> None:
         """Initialize the KRecDataset.
 
@@ -47,16 +51,18 @@ class KRecDataset(Dataset):
             image_history_size: Number of frames in the image history
             device: Device to load the data on ('cpu' or 'cuda')
             has_video: Whether the dataset has video frames
-
-        Raises:
-            ValueError: If no .krec.mkv files are found in the directory
+            camera_width: Width of camera frames
+            camera_height: Height of camera frames
+            camera_channels: Number of channels in camera frames
         """
         self.krec_dir: Path = Path(krec_dir)
         self.chunk_size = chunk_size
         self.image_history_size = max(1, image_history_size)
         self.device = device
+        self.camera_width = camera_width
+        self.camera_height = camera_height
+        self.camera_channels = camera_channels
 
-        # TODO: remove it
         self.filepaths: list[str] = sorted(
             glob(os.path.join(krec_dir, "*.krec")) + glob(os.path.join(krec_dir, "*.krec.mkv"))
         )
@@ -96,7 +102,7 @@ class KRecDataset(Dataset):
             video_frame = video_decoder[krec_frame.video_frame_number]
         else:
             video_frame = np.zeros(
-                (DefaultCameraSetup.height, DefaultCameraSetup.width, DefaultCameraSetup.channels), dtype=np.uint8
+                (self.camera_height, self.camera_width, self.camera_channels), dtype=np.uint8
             )
 
         # Initialize arrays

@@ -11,8 +11,6 @@ import numpy as np
 import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from keval.observation import JOINT_NAMES
-
 
 class MetricsType(Enum):
     EPISODE_DURATION = "EPISODE_DURATION"
@@ -150,16 +148,23 @@ class EpisodeDuration(BaseMetric):
 
 
 class PositionError(BaseMetric):
-    def __init__(self, name: str | MetricsType | None = None) -> None:
+    def __init__(self, config: DictConfig, name: str | MetricsType | None = None) -> None:
         """Initialize the position error metric.
 
         Args:
+            config: The configuration containing the joint names.
             name: The name of the metric.
         """
         super().__init__(name=name or MetricsType.POSITION_ERROR)
         self.predicted_position: list[np.ndarray] = []
         self.observed_position: list[np.ndarray] = []
-        self.num_joints = len(JOINT_NAMES)
+
+        # Get joint names from the schema config
+        joint_schema = next(
+            value for value in config.io_schema.input
+            if value.get("type") == "joint_positions"
+        )
+        self.num_joints = len(joint_schema["schema"]["joint_names"])
 
     def add_step(self, predicted_position: np.ndarray, observed_position: np.ndarray) -> None:
         """Add a step to the position error metric.

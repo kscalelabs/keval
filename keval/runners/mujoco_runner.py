@@ -12,7 +12,7 @@ from kinfer.inference.python import ONNXModel
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from keval import metrics
-from keval.observation import JOINT_NAMES, FullObservation, ValueType
+from keval.observation import MujocoFullObservation
 from keval.runners.base_runner import Runner
 
 LEFT_CAMERA_ID = 2
@@ -25,12 +25,10 @@ ATTACHED_METADATA = {
     "tau_factor": 1.0,
 }
 
-
 class LocomotionTasks(Enum):
     STANDING = "STANDING"
     CONSTANT_COMMAND = "CONSTANT_COMMAND"
     RANDOM_COMMAND = "RANDOM_COMMAND"
-
 
 class MujocoRunner(Runner):
     def __init__(
@@ -39,20 +37,11 @@ class MujocoRunner(Runner):
         model: ONNXModel,
         metrics: metrics.Metrics,
     ) -> None:
-        """Initializes the Mujoco runner.
-
-        Args:
-            eval_config: The evaluation configuration.
-            model: The model to evaluate.
-            metrics: The metrics to use.
-        """
+        """Initializes the Mujoco runner."""
         self.eval_config = eval_config.eval_envs.locomotion
         self.config = eval_config
 
-        self.model_info = ATTACHED_METADATA
-        self.model = model
-
-        Path(self.config.logging.log_dir, "locomotion").mkdir(parents=True, exist_ok=True)
+        super().__init__(eval_config, model, metrics)
 
         # Init mujoco env
         mujoco_model_path = f"{eval_config.resources_dir}/{eval_config.embodiment}/robot.xml"
@@ -71,9 +60,12 @@ class MujocoRunner(Runner):
             height=480 // 2,
             width=640 // 2,
         )
+        
         self.record_video = eval_config.eval_envs.locomotion.record_video
         self.camera_frames: list[np.ndarray] = []
+        self.model_info = ATTACHED_METADATA
 
+        # Initialize command variables
         self.x_vel_cmd = 0.4
         self.y_vel_cmd = 0.0
         self.yaw_vel_cmd = 0.0
@@ -90,13 +82,13 @@ class MujocoRunner(Runner):
         local_metrics = {
             metrics.MetricsType.EPISODE_DURATION.name + "_" + task.value: metrics.EpisodeDuration(
                 name=metrics.MetricsType.EPISODE_DURATION.name + "_" + task.value,
-                expected_length=int(self.eval_config.sim_duration / self.model_info["sim_dt"]),
+                expected_length=int(self.config.eval_envs.locomotion.sim_duration / self.model_info["sim_dt"]),
             ),
             metrics.MetricsType.TRACKING_ERROR.name + "_" + task.value: metrics.TrackingError(
                 name=metrics.MetricsType.TRACKING_ERROR.name + "_" + task.value
             ),
-            # metrics.MetricsType.POSITION_ERROR.name: metrics.PositionError(),
-            # metrics.MetricsType.CONTACT_FORCES.name: metrics.ContactForces(),
+            # metrics_module.MetricsType.POSITION_ERROR.name: metrics_module.PositionError(),
+            # metrics_module.MetricsType.CONTACT_FORCES.name: metrics_module.ContactForces(),
         }
         return local_metrics
 
@@ -127,113 +119,44 @@ class MujocoRunner(Runner):
         return local_metrics
 
     def create_observation(self, simulation_time: float) -> P.IO:
-        """Create the observation for the model.
+        """Create the observation for the model."""
+        # Safely get sensor data with None fallback
+        try:
+            accel_data = self.mj_data.sensor("accelerometer").data.tolist()
+        except (AttributeError, KeyError):
+            accel_data = None
 
-        Args:
-            simulation_time: The simulation time.
+        try:
+            gyro_data = self.mj_data.sensor("angular-velocity").data.tolist()
+        except (AttributeError, KeyError):
+            gyro_data = None
 
-        Returns:
-            The observation for the model.
-        """
-        joint_positions = P.Value(
-            value_name=ValueType.JOINT_POSITIONS.value,
-            joint_positions=P.JointPositionsValue(
-                values=[
-                    P.JointPositionValue(
-                        joint_name=name,
-                        value=self.mj_data.qpos[-len(JOINT_NAMES) + index],
-                        unit=P.JointPositionUnit.RADIANS,
-                    )
-                    for index, name in enumerate(JOINT_NAMES)
-                ]
-            ),
+        try:
+            mag_data = self.mj_data.sensor("magnetometer").data.tolist()
+        except (AttributeError, KeyError):
+            mag_data = None
+
+        # Get camera frames if viewer exists
+        camera_left = (self.viewer.read_pixels(camid=LEFT_CAMERA_ID).tobytes() 
+                      if self.viewer is not None else None)
+        camera_right = (self.viewer.read_pixels(camid=RIGHT_CAMERA_ID).tobytes()
+                       if self.viewer is not None else None)
+
+        raw_obs = MujocoFullObservation(
+            qpos=self.mj_data.qpos.tolist(),
+            qvel=self.mj_data.qvel.tolist(),
+            x_vel_cmd=self.x_vel_cmd,
+            y_vel_cmd=self.y_vel_cmd,
+            yaw_vel_cmd=self.yaw_vel_cmd,
+            accelerometer=accel_data,
+            gyroscope=gyro_data,
+            magnetometer=mag_data,
+            simulation_time=simulation_time,
+            camera_frame_left=camera_left,
+            camera_frame_right=camera_right,
         )
 
-        joint_velocities = P.Value(
-            value_name=ValueType.JOINT_VELOCITIES.value,
-            joint_velocities=P.JointVelocitiesValue(
-                values=[
-                    P.JointVelocityValue(
-                        joint_name=name,
-                        value=self.mj_data.qvel[-len(JOINT_NAMES) + index],
-                        unit=P.JointVelocityUnit.RADIANS_PER_SECOND,
-                    )
-                    for index, name in enumerate(JOINT_NAMES)
-                ]
-            ),
-        )
-
-        vector_command = P.Value(
-            value_name=ValueType.VECTOR_COMMAND.value,
-            vector_command=P.VectorCommandValue(
-                values=[self.x_vel_cmd, self.y_vel_cmd, self.yaw_vel_cmd],
-            ),
-        )
-
-        imu = P.Value(
-            value_name=ValueType.IMU.value,
-            imu=P.ImuValue(
-                linear_acceleration=P.ImuAccelerometerValue(
-                    x=self.mj_data.sensor("accelerometer").data[0],
-                    y=self.mj_data.sensor("accelerometer").data[1],
-                    z=self.mj_data.sensor("accelerometer").data[2],
-                ),
-                angular_velocity=P.ImuGyroscopeValue(
-                    x=self.mj_data.sensor("angular-velocity").data[0],
-                    y=self.mj_data.sensor("angular-velocity").data[1],
-                    z=self.mj_data.sensor("angular-velocity").data[2],
-                ),
-                magnetic_field=P.ImuMagnetometerValue(
-                    x=self.mj_data.sensor("magnetometer").data[0],
-                    y=self.mj_data.sensor("magnetometer").data[1],
-                    z=self.mj_data.sensor("magnetometer").data[2],
-                ),
-            ),
-        )
-
-        seconds = int(simulation_time)
-        nanos = int((simulation_time - seconds) * 1e9)
-        timestamp = P.Value(
-            value_name=ValueType.TIMESTAMP.value,
-            timestamp=P.TimestampValue(
-                seconds=seconds,
-                nanos=nanos,
-            ),
-        )
-
-        camera_frame_left = P.Value(
-            value_name=ValueType.CAMERA_FRAME_LEFT.value,
-            camera_frame=P.CameraFrameValue(
-                data=self.viewer.read_pixels(camid=LEFT_CAMERA_ID).tobytes(),
-            ),
-        )
-
-        camera_frame_right = P.Value(
-            value_name=ValueType.CAMERA_FRAME_RIGHT.value,
-            camera_frame=P.CameraFrameValue(
-                data=self.viewer.read_pixels(camid=RIGHT_CAMERA_ID).tobytes(),
-            ),
-        )
-
-        full_observation = FullObservation(
-            joint_positions=joint_positions,
-            joint_velocities=joint_velocities,
-            vector_command=vector_command,
-            imu=imu,
-            timestamp=timestamp,
-            camera_frame_left=camera_frame_left,
-            camera_frame_right=camera_frame_right,
-        )
-
-        # Assemble observation space for the model
-        inputs = P.IO(values=[])
-        for key in self.model.schema_input_keys:
-            try:
-                inputs.values.append(getattr(full_observation, key))
-            except AttributeError:
-                raise AttributeError(f"Attribute {key} not found in FullObservation")
-
-        return inputs
+        return raw_obs.to_proto(self.input_schema)
 
     def task_setup(self, task: LocomotionTasks, simulation_step: int) -> None:
         if task == LocomotionTasks.STANDING:
@@ -266,7 +189,7 @@ class MujocoRunner(Runner):
         """
         local_metrics = self._init_locomotion_metrics(task)
 
-        for simulation_step in range(int(self.eval_config.sim_duration / self.model_info["sim_dt"])):
+        for simulation_step in range(int(self.config.eval_envs.locomotion.sim_duration / self.model_info["sim_dt"])):
             self.task_setup(task, simulation_step)
             if simulation_step % self.model_info["sim_decimation"] == 0:
                 observation = self.create_observation(simulation_step * self.model_info["sim_dt"])
@@ -308,7 +231,7 @@ class MujocoRunner(Runner):
         """
         all_metrics = []
         for task in LocomotionTasks:
-            for index in range(self.eval_config.eval_runs):
+            for index in range(self.config.eval_envs.locomotion.eval_runs):
                 local_metrics = self.run_one_rollout(index, task)
                 all_metrics.append(local_metrics)
 

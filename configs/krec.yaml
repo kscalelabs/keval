@@ -16,3 +16,21 @@ eval_envs:
 logging:
   log_dir: "logs"
   save_video: true
+
+io_schema:
+  input:
+    - value_name: "joint_positions"
+      type: "joint_positions"
+      schema:
+        joint_names: ${robot.joints}
+        unit: "degrees"
+    camera_frame:
+      value_name: "camera_frame_left"
+      width: 640
+      height: 480
+      channels: 3
+    camera_frame:
+      value_name: "camera_frame_right"
+      width: 640
+      height: 480
+      channels: 3
