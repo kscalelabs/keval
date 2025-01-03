@@ -43,7 +43,7 @@ class HumanoidEvaluator(keval.BaseEvaluator[keval.Config]):
 
 if __name__ == "__main__":
     keval.run(
-        environment=HumanoidEnvironment,
+        environment_cls=HumanoidEnvironment,
         evaluation=HumanoidEvaluation,
         evaluator=HumanoidEvaluator,
         num_episodes=10,

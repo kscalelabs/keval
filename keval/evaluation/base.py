@@ -12,11 +12,12 @@ from kinfer import proto as K
 from kinfer.inference.python import ONNXModel
 
 from keval.config import ConfigType, HasConfigMixin
+from keval.environment.base import BaseEnvironment
 
 
 class BaseEvaluation(ABC, HasConfigMixin[ConfigType], Generic[ConfigType]):
     """Base evaluation class."""
 
     @abstractmethod
-    def evaluate(self, model: ONNXModel, environment: Environment) -> K.IO:
+    def evaluate(self, model: ONNXModel, environment: BaseEnvironment) -> K.IO:
         """Evaluate the model in the environment."""
