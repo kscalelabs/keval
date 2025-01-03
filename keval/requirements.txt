@@ -6,7 +6,7 @@ krecviz
 mujoco
 omegaconf
 onnxruntime
-torch>=2.5.1
+torch
 torchcodec
 mujoco-python-viewer
 scipy
