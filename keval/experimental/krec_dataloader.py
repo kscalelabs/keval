@@ -13,7 +13,6 @@ from torch.utils.data import DataLoader, Dataset
 from torchcodec.decoders import VideoDecoder
 
 from keval.observation import ValueType
-from keval.schema import SchemaConverter
 
 TEMP_JOINT_MAPPING = {
     11: 0,
@@ -101,9 +100,7 @@ class KRecDataset(Dataset):
             video_decoder = VideoDecoder(curr_fp, device=self.device)
             video_frame = video_decoder[krec_frame.video_frame_number]
         else:
-            video_frame = np.zeros(
-                (self.camera_height, self.camera_width, self.camera_channels), dtype=np.uint8
-            )
+            video_frame = np.zeros((self.camera_height, self.camera_width, self.camera_channels), dtype=np.uint8)
 
         # Initialize arrays
         actuator_states = krec_frame.get_actuator_states()

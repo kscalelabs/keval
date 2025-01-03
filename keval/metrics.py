@@ -160,10 +160,7 @@ class PositionError(BaseMetric):
         self.observed_position: list[np.ndarray] = []
 
         # Get joint names from the schema config
-        joint_schema = next(
-            value for value in config.io_schema.input
-            if value.get("type") == "joint_positions"
-        )
+        joint_schema = next(value for value in config.io_schema.input if value.get("type") == "joint_positions")
         self.num_joints = len(joint_schema["schema"]["joint_names"])
 
     def add_step(self, predicted_position: np.ndarray, observed_position: np.ndarray) -> None:
